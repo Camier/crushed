@@ -1,0 +1,31 @@
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "llamacpp": {
+      "name": "llama.cpp Direct",
+      "base_url": "http://localhost:8080/v1/",
+      "type": "openai",
+      "models": [
+        {
+          "name": "Qwen2.5-14B-Instruct",
+          "id": "qwen2.5-14b-instruct",
+          "context_window": 32768,
+          "default_max_tokens": 4096
+        }
+      ]
+    }
+  },
+  "models": {
+    "large": {
+      "model": "qwen2.5-14b-instruct",
+      "provider": "llamacpp"
+    },
+    "small": {
+      "model": "qwen2.5-14b-instruct",
+      "provider": "llamacpp"
+    }
+  },
+  "options": {
+    "context_paths": []
+  }
+}
