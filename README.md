@@ -463,6 +463,48 @@ Tip: you can switch the preferred model quickly with `crush models use -t large 
 
 If your OpenAI-compatible backend does not implement streaming (SSE), set `disable_stream: true` on the provider. Crush will automatically fall back to a non‑streaming interaction for that provider.
 
+##### vLLM (Local GPU, OpenAI-compatible)
+
+Run an OpenAI-compatible vLLM server locally and point Crush at it:
+
+Start the server (Docker):
+
+```
+docker run -d --name vllm-llama3 --gpus all \
+  -p 8000:8000 \
+  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
+  -e HF_TOKEN="$HF_TOKEN" \
+  vllm/vllm-openai:latest \
+  --model meta-llama/Meta-Llama-3-8B-Instruct \
+  --port 8000 --host 0.0.0.0
+```
+
+Or use the helper script:
+
+```
+scripts/start-vllm-llama3.sh
+```
+
+Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use the preset included):
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "vllm": {
+      "type": "openai",
+      "name": "vLLM (local)",
+      "base_url": "http://127.0.0.1:8000/v1/",
+      "models": [
+        { "id": "meta-llama/Meta-Llama-3-8B-Instruct", "name": "Llama 3 8B Instruct", "context_window": 8192, "default_max_tokens": 1024 }
+      ]
+    }
+  }
+}
+```
+
+Tip: Switch quickly with `crush models use -t large vllm meta-llama/Meta-Llama-3-8B-Instruct`.
+
 #### Anthropic-Compatible APIs
 
 Custom Anthropic-compatible providers follow this format:

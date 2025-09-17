@@ -1,6 +1,19 @@
 {
   "$schema": "https://charm.land/crush.json",
   "providers": {
+    "vllm": {
+      "name": "vLLM (OpenAI compatible, local GPU)",
+      "base_url": "http://127.0.0.1:8000/v1/",
+      "type": "openai",
+      "models": [
+        {
+          "name": "Llama 3 8B Instruct",
+          "id": "meta-llama/Meta-Llama-3-8B-Instruct",
+          "context_window": 8192,
+          "default_max_tokens": 1024
+        }
+      ]
+    },
     "llamacpp-14b": {
       "name": "llama.cpp Qwen2.5 14B (local)",
       "base_url": "http://127.0.0.1:8080/v1/",

@@ -375,7 +375,8 @@ func (c *Config) UpdatePreferredModel(modelType SelectedModelType, model Selecte
 	default:
 		return fmt.Errorf("invalid reasoning effort: %s", model.ReasoningEffort)
 	}
-	if prov.Type != catwalk.TypeOpenAI {
+	// Preserve reasoning only for OpenAI-family providers (e.g., OpenAI, Azure OpenAI)
+	if prov.Type != catwalk.TypeOpenAI && prov.Type != catwalk.TypeAzure {
 		model.ReasoningEffort = ""
 	}
 	if c.Models == nil {
