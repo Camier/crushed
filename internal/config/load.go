@@ -178,18 +178,21 @@ func (c *Config) configureProviders(env env.Env, resolver VariableResolver, know
 			maps.Copy(headers, config.ExtraHeaders)
 		}
 		prepared := ProviderConfig{
-			ID:                 string(p.ID),
-			Name:               p.Name,
-			BaseURL:            p.APIEndpoint,
-			APIKey:             p.APIKey,
-			Type:               p.Type,
-			Disable:            config.Disable,
-			DisableStream:      config.DisableStream,
-			SystemPromptPrefix: config.SystemPromptPrefix,
-			ExtraHeaders:       headers,
-			ExtraBody:          config.ExtraBody,
-			ExtraParams:        make(map[string]string),
-			Models:             p.Models,
+			ID:                    string(p.ID),
+			Name:                  p.Name,
+			BaseURL:               p.APIEndpoint,
+			APIKey:                p.APIKey,
+			Type:                  p.Type,
+			Disable:               config.Disable,
+			DisableStream:         config.DisableStream,
+			StartupCommand:        config.StartupCommand,
+			StartupTimeoutSeconds: config.StartupTimeoutSeconds,
+			StartupHealthPath:     config.StartupHealthPath,
+			SystemPromptPrefix:    config.SystemPromptPrefix,
+			ExtraHeaders:          headers,
+			ExtraBody:             config.ExtraBody,
+			ExtraParams:           make(map[string]string),
+			Models:                p.Models,
 		}
 
 		switch p.ID {

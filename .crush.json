@@ -5,6 +5,9 @@
       "name": "vLLM (OpenAI compatible, local GPU)",
       "base_url": "http://127.0.0.1:8000/v1/",
       "type": "openai",
+      "startup_command": "python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --port 8000 --host 0.0.0.0 --dtype float16",
+      "startup_timeout_seconds": 90,
+      "startup_health_path": "/models",
       "models": [
         {
           "name": "Llama 3 8B Instruct",

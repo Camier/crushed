@@ -82,6 +82,12 @@ type ProviderConfig struct {
 	Disable bool `json:"disable,omitempty" jsonschema:"description=Whether this provider is disabled,default=false"`
 	// Disable streaming requests for providers that do not support SSE.
 	DisableStream bool `json:"disable_stream,omitempty" jsonschema:"description=Disable streaming responses for this provider,default=false"`
+	// Command that should be executed to bootstrap the provider when selected.
+	StartupCommand string `json:"startup_command,omitempty" jsonschema:"description=Shell command to run when the provider is selected to ensure the service is running"`
+	// Optional timeout in seconds while waiting for the startup command to make the provider reachable.
+	StartupTimeoutSeconds int `json:"startup_timeout_seconds,omitempty" jsonschema:"description=How long to wait (seconds) for the startup command to make the provider ready,default=60"`
+	// Optional health path relative to base_url used to confirm readiness.
+	StartupHealthPath string `json:"startup_health_path,omitempty" jsonschema:"description=Relative path appended to the base URL to check readiness,default=/models"`
 
 	// Custom system prompt prefix.
 	SystemPromptPrefix string `json:"system_prompt_prefix,omitempty" jsonschema:"description=Custom prefix to add to system prompts for this provider"`

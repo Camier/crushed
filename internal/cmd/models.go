@@ -1,10 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/config"
@@ -136,6 +141,10 @@ var modelsUseCmd = &cobra.Command{
 			return err
 		}
 
+		if err := ensureProviderReady(cmd.Context(), cwd, prov); err != nil {
+			return err
+		}
+
 		fmt.Fprintf(os.Stdout, "Updated %s model to %s/%s\n", modelType, providerID, modelID)
 		return nil
 	},
@@ -158,4 +167,107 @@ func formatReasoning(reason string) string {
 		return ""
 	}
 	return fmt.Sprintf(" (reasoning: %s)", reason)
+}
+
+func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderConfig) error {
+	if prov.StartupCommand == "" {
+		return nil
+	}
+	if os.Getenv("CRUSH_SKIP_PROVIDER_STARTUP") == "1" {
+		return nil
+	}
+
+	baseURL := strings.TrimSpace(prov.BaseURL)
+	if baseURL == "" {
+		return fmt.Errorf("provider base_url is required to perform readiness checks")
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	healthPath := strings.TrimSpace(prov.StartupHealthPath)
+	if healthPath == "" {
+		healthPath = "/models"
+	}
+	if !strings.HasPrefix(healthPath, "/") {
+		healthPath = "/" + healthPath
+	}
+	healthURL := baseURL + healthPath
+
+	if providerHealthy(ctx, healthURL) {
+		return nil
+	}
+
+	providerName := prov.ID
+	if providerName == "" {
+		providerName = prov.Name
+	}
+	fmt.Fprintf(os.Stdout, "Provider %s not reachable, executing startup command...\n", providerName)
+
+	cmd := buildShellCommand(prov.StartupCommand)
+	cmd.Dir = cwd
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start provider command: %w", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	timeoutSeconds := prov.StartupTimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 60
+	}
+	deadlineCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadlineCtx.Done():
+			if cmd.ProcessState == nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			return fmt.Errorf("provider did not become ready within %d seconds", timeoutSeconds)
+		case err := <-done:
+			if err != nil {
+				return fmt.Errorf("provider startup command exited with error: %w", err)
+			}
+			// Command exited successfully; continue polling in case it spawned a background process.
+		case <-ticker.C:
+			if providerHealthy(ctx, healthURL) {
+				fmt.Fprintln(os.Stdout, "Provider is ready.")
+				return nil
+			}
+		}
+	}
+}
+
+func providerHealthy(ctx context.Context, url string) bool {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
+}
+
+func buildShellCommand(command string) *exec.Cmd {
+	if runtime.GOOS == "windows" {
+		return exec.Command("cmd", "/c", command)
+	}
+	return exec.Command("bash", "-lc", command)
 }

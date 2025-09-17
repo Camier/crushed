@@ -366,6 +366,21 @@
           "description": "Disable streaming responses for this provider",
           "default": false
         },
+        "startup_command": {
+          "type": "string",
+          "description": "Shell command to execute when this provider is selected to ensure the service is running"
+        },
+        "startup_timeout_seconds": {
+          "type": "integer",
+          "description": "How long to wait (seconds) for the startup command to make the provider ready",
+          "default": 60,
+          "minimum": 0
+        },
+        "startup_health_path": {
+          "type": "string",
+          "description": "Relative path appended to the base URL to check readiness",
+          "default": "/models"
+        },
         "system_prompt_prefix": {
           "type": "string",
           "description": "Custom prefix to add to system prompts for this provider"

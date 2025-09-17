@@ -491,6 +491,8 @@ Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use th
       "type": "openai",
       "name": "vLLM (local)",
       "base_url": "http://127.0.0.1:8000/v1/",
+      "startup_command": "python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --port 8000 --host 0.0.0.0 --dtype float16",
+      "startup_timeout_seconds": 90,
       "models": [
         { "id": "meta-llama/Meta-Llama-3-8B-Instruct", "name": "Llama 3 8B Instruct", "context_window": 8192, "default_max_tokens": 1024 }
       ]
@@ -500,6 +502,8 @@ Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use th
 ```
 
 Tip: Switch quickly with `crush models use -t large vllm meta-llama/Meta-Llama-3-8B-Instruct`.
+
+Environment variable `CRUSH_SKIP_PROVIDER_STARTUP=1` disables automatic startup checks if you prefer to manage services yourself.
 
 ##### Groq (Hosted, ultra-low latency)
 
