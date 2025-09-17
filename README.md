@@ -515,6 +515,12 @@ python -m vllm.entrypoints.openai.api_server \
 
 - Optional: set `HF_TOKEN` if the model is gated.
 - To persist downloads, export `HF_HOME=$HOME/.cache/huggingface` before launching.
+- Prefetch the model weights once (recommended) so the server starts instantly:
+
+```
+pip install huggingface_hub
+python scripts/prefetch-vllm-models.py
+```
 
 Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use the preset included):
 
