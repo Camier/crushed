@@ -5,15 +5,27 @@
       "name": "vLLM (OpenAI compatible, local GPU)",
       "base_url": "http://127.0.0.1:8000/v1/",
       "type": "openai",
-      "startup_command": "python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --port 8000 --host 0.0.0.0 --dtype float16",
-      "startup_timeout_seconds": 90,
+      "startup_command": "python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --served-model-name llama3-8b --model deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct --served-model-name deepseek-coder --model mistralai/Mixtral-8x7B-Instruct-v0.1 --served-model-name mixtral-8x7b --host 0.0.0.0 --port 8000 --dtype float16 --gpu-memory-utilization 0.9 --max-model-len 32768 --num-scheduler-steps 10",
+      "startup_timeout_seconds": 120,
       "startup_health_path": "/models",
       "models": [
         {
           "name": "Llama 3 8B Instruct",
-          "id": "meta-llama/Meta-Llama-3-8B-Instruct",
-          "context_window": 8192,
-          "default_max_tokens": 1024
+          "id": "llama3-8b",
+          "context_window": 32768,
+          "default_max_tokens": 4096
+        },
+        {
+          "name": "DeepSeek Coder V2 Lite",
+          "id": "deepseek-coder",
+          "context_window": 32768,
+          "default_max_tokens": 4096
+        },
+        {
+          "name": "Mixtral 8x7B",
+          "id": "mixtral-8x7b",
+          "context_window": 32768,
+          "default_max_tokens": 4096
         }
       ]
     },

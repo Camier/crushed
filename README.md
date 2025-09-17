@@ -491,7 +491,8 @@ If your OpenAI-compatible backend does not implement streaming (SSE), set `disab
 
 ##### vLLM (Local GPU, OpenAI-compatible)
 
-Install vLLM in your Python environment and run the OpenAI-compatible API server:
+Install vLLM in your Python environment and run a single OpenAI-compatible API
+server that serves **multiple models at once**:
 
 ```
 python -m venv .venv
@@ -500,8 +501,16 @@ pip install --upgrade pip
 pip install vllm==0.5.4.post1
 python -m vllm.entrypoints.openai.api_server \
   --model meta-llama/Meta-Llama-3-8B-Instruct \
-  --port 8000 --host 0.0.0.0 \
-  --dtype float16
+  --served-model-name llama3-8b \
+  --model deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct \
+  --served-model-name deepseek-coder \
+  --model mistralai/Mixtral-8x7B-Instruct-v0.1 \
+  --served-model-name mixtral-8x7b \
+  --host 0.0.0.0 --port 8000 \
+  --dtype float16 \
+  --gpu-memory-utilization 0.9 \
+  --max-model-len 32768 \
+  --num-scheduler-steps 10
 ```
 
 - Optional: set `HF_TOKEN` if the model is gated.
@@ -517,10 +526,12 @@ Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use th
       "type": "openai",
       "name": "vLLM (local)",
       "base_url": "http://127.0.0.1:8000/v1/",
-      "startup_command": "python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --port 8000 --host 0.0.0.0 --dtype float16",
-      "startup_timeout_seconds": 90,
+      "startup_command": "python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --served-model-name llama3-8b --model deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct --served-model-name deepseek-coder --model mistralai/Mixtral-8x7B-Instruct-v0.1 --served-model-name mixtral-8x7b --host 0.0.0.0 --port 8000 --dtype float16 --gpu-memory-utilization 0.9 --max-model-len 32768 --num-scheduler-steps 10",
+      "startup_timeout_seconds": 120,
       "models": [
-        { "id": "meta-llama/Meta-Llama-3-8B-Instruct", "name": "Llama 3 8B Instruct", "context_window": 8192, "default_max_tokens": 1024 }
+        { "id": "llama3-8b", "name": "Llama 3 8B Instruct", "context_window": 32768, "default_max_tokens": 4096 },
+        { "id": "deepseek-coder", "name": "DeepSeek Coder V2 Lite", "context_window": 32768, "default_max_tokens": 4096 },
+        { "id": "mixtral-8x7b", "name": "Mixtral 8x7B", "context_window": 32768, "default_max_tokens": 4096 }
       ]
     }
   }
@@ -528,6 +539,10 @@ Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use th
 ```
 
 Tip: Switch quickly with `crush models use -t large vllm meta-llama/Meta-Llama-3-8B-Instruct`.
+
+The same vLLM process now hosts multiple models—Crush simply sets the `model`
+field (e.g. `llama3-8b`, `deepseek-coder`, `mixtral-8x7b`) when making API
+calls.
 
 Environment variable `CRUSH_SKIP_PROVIDER_STARTUP=1` disables automatic startup checks if you prefer to manage services yourself.
 
