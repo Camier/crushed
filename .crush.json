@@ -137,6 +137,118 @@
           "default_max_tokens": 1024
         }
       ]
+    },
+    "openai": {
+      "name": "OpenAI",
+      "base_url": "https://api.openai.com/v1/",
+      "type": "openai",
+      "api_key": "$OPENAI_API_KEY",
+      "models": [
+        {
+          "name": "GPT-4o",
+          "id": "gpt-4o",
+          "context_window": 128000,
+          "default_max_tokens": 4096
+        }
+      ]
+    },
+    "groq": {
+      "name": "Groq",
+      "base_url": "https://api.groq.com/openai/v1/",
+      "type": "openai",
+      "api_key": "$GROQ_API_KEY",
+      "models": [
+        {
+          "name": "Llama3-8B-8192",
+          "id": "llama3-8b-8192",
+          "context_window": 8192,
+          "default_max_tokens": 4096
+        }
+      ]
+    },
+    "together": {
+      "name": "Together AI",
+      "base_url": "https://api.together.xyz/v1/",
+      "type": "openai",
+      "api_key": "$TOGETHER_API_KEY",
+      "models": [
+        {
+          "name": "Llama-3-70B-Instruct",
+          "id": "meta-llama/Llama-3-70B-Instruct-Turbo",
+          "context_window": 8000,
+          "default_max_tokens": 4096
+        }
+      ]
+    },
+    "fireworks": {
+      "name": "Fireworks AI",
+      "base_url": "https://api.fireworks.ai/inference/v1/",
+      "type": "openai",
+      "api_key": "$FIREWORKS_API_KEY",
+      "models": [
+        {
+          "name": "FireLLaVa 13B",
+          "id": "accounts/fireworks/models/firellava-13b",
+          "context_window": 8192,
+          "default_max_tokens": 2048
+        }
+      ]
+    },
+    "dashscope-intl": {
+      "name": "DashScope (Intl)",
+      "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+      "type": "openai",
+      "api_key": "$DASHSCOPE_API_KEY",
+      "models": [
+        {
+          "name": "Qwen3 Coder Plus",
+          "id": "qwen3-coder-plus",
+          "context_window": 131072,
+          "default_max_tokens": 8192
+        }
+      ]
+    },
+    "dashscope-cn": {
+      "name": "DashScope (CN)",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "type": "openai",
+      "api_key": "$DASHSCOPE_API_KEY",
+      "models": [
+        {
+          "name": "Qwen3 Coder Plus",
+          "id": "qwen3-coder-plus",
+          "context_window": 131072,
+          "default_max_tokens": 8192
+        }
+      ]
+    },
+    "modelscope-cn": {
+      "name": "ModelScope (CN)",
+      "base_url": "https://api-inference.modelscope.cn/v1/",
+      "type": "openai",
+      "api_key": "$MODELSCOPE_API_KEY",
+      "models": [
+        {
+          "name": "Qwen3 Coder 480B Instruct",
+          "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+          "context_window": 131072,
+          "default_max_tokens": 8192
+        }
+      ]
+    },
+    "openrouter": {
+      "name": "OpenRouter",
+      "base_url": "https://openrouter.ai/api/v1/",
+      "type": "openai",
+      "api_key": "$OPENROUTER_API_KEY",
+      "models": [
+        {
+          "name": "Qwen3 Coder (Free)",
+          "id": "qwen/qwen3-coder:free",
+          "context_window": 131072,
+          "default_max_tokens": 8192
+        }
+      ]
     }
   },
   "models": {

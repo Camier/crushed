@@ -465,25 +465,21 @@ If your OpenAI-compatible backend does not implement streaming (SSE), set `disab
 
 ##### vLLM (Local GPU, OpenAI-compatible)
 
-Run an OpenAI-compatible vLLM server locally and point Crush at it:
-
-Start the server (Docker):
+Install vLLM in your Python environment and run the OpenAI-compatible API server:
 
 ```
-docker run -d --name vllm-llama3 --gpus all \
-  -p 8000:8000 \
-  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
-  -e HF_TOKEN="$HF_TOKEN" \
-  vllm/vllm-openai:latest \
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install vllm==0.5.4.post1
+python -m vllm.entrypoints.openai.api_server \
   --model meta-llama/Meta-Llama-3-8B-Instruct \
-  --port 8000 --host 0.0.0.0
+  --port 8000 --host 0.0.0.0 \
+  --dtype float16
 ```
 
-Or use the helper script:
-
-```
-scripts/start-vllm-llama3.sh
-```
+- Optional: set `HF_TOKEN` if the model is gated.
+- To persist downloads, export `HF_HOME=$HOME/.cache/huggingface` before launching.
 
 Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use the preset included):
 
@@ -504,6 +500,114 @@ Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use th
 ```
 
 Tip: Switch quickly with `crush models use -t large vllm meta-llama/Meta-Llama-3-8B-Instruct`.
+
+##### Groq (Hosted, ultra-low latency)
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "groq": {
+      "type": "openai",
+      "name": "Groq",
+      "base_url": "https://api.groq.com/openai/v1/",
+      "api_key": "$GROQ_API_KEY",
+      "models": [
+        { "id": "llama3-8b-8192", "name": "Llama3 8B 8192", "context_window": 8192, "default_max_tokens": 4096 }
+      ]
+    }
+  }
+}
+```
+
+Tip: `crush models use -t large groq llama3-8b-8192`.
+
+##### Together AI (Hosted aggregation)
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "together": {
+      "type": "openai",
+      "name": "Together AI",
+      "base_url": "https://api.together.xyz/v1/",
+      "api_key": "$TOGETHER_API_KEY",
+      "models": [
+        { "id": "meta-llama/Llama-3-70B-Instruct-Turbo", "name": "Llama 3 70B Turbo", "context_window": 8000, "default_max_tokens": 4096 }
+      ]
+    }
+  }
+}
+```
+
+##### Fireworks AI (Hosted, high-throughput)
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "fireworks": {
+      "type": "openai",
+      "name": "Fireworks AI",
+      "base_url": "https://api.fireworks.ai/inference/v1/",
+      "api_key": "$FIREWORKS_API_KEY",
+      "models": [
+        { "id": "accounts/fireworks/models/firellava-13b", "name": "FireLLaVa 13B", "context_window": 8192, "default_max_tokens": 2048 }
+      ]
+    }
+  }
+}
+```
+
+##### OpenAI (Official)
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "openai": {
+      "type": "openai",
+      "name": "OpenAI",
+      "base_url": "https://api.openai.com/v1/",
+      "api_key": "$OPENAI_API_KEY",
+      "models": [
+        { "id": "gpt-4o", "name": "GPT-4o", "context_window": 128000, "default_max_tokens": 4096 }
+      ]
+    }
+  }
+}
+```
+
+##### Azure OpenAI
+
+Azure’s OpenAI-compatible endpoint follows this pattern:
+
+```
+https://<resource>.openai.azure.com/openai/deployments/<deployment>/
+```
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "azure-openai": {
+      "type": "openai",
+      "name": "Azure OpenAI",
+      "base_url": "$AZURE_OPENAI_BASE_URL",
+      "api_key": "$AZURE_OPENAI_KEY",
+      "extra_headers": {
+        "api-version": "2024-05-01-preview"
+      },
+      "models": [
+        { "id": "gpt-4o", "name": "GPT-4o Deployment", "context_window": 128000, "default_max_tokens": 4096 }
+      ]
+    }
+  }
+}
+```
+
+Set `AZURE_OPENAI_BASE_URL` to your deployment URL (for example `https://my-resource.openai.azure.com/openai/deployments/gpt-4o/`).
 
 #### Anthropic-Compatible APIs
 
