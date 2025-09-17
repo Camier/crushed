@@ -16,12 +16,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type providerRow struct {
+	id   string
+	prov config.ProviderConfig
+}
+
 func init() {
 	modelsCmd.AddCommand(modelsListCmd)
 	modelsUseCmd.Flags().StringP("type", "t", string(config.SelectedModelTypeLarge), "Model type to update: large or small")
 	modelsUseCmd.Flags().Int64("max-tokens", 0, "Override max tokens for the selected model (optional)")
 	modelsUseCmd.Flags().String("reasoning-effort", "", "Reasoning effort for OpenAI models (low, medium, high) (optional)")
 	modelsCmd.AddCommand(modelsUseCmd)
+	modelsCmd.AddCommand(modelsStatusCmd)
 	rootCmd.AddCommand(modelsCmd)
 }
 
@@ -44,10 +50,6 @@ var modelsListCmd = &cobra.Command{
 		}
 
 		fmt.Fprintln(os.Stdout, "Providers:")
-		type providerRow struct {
-			id   string
-			prov config.ProviderConfig
-		}
 		providers := make([]providerRow, 0)
 		for id, p := range cfg.Providers.Seq2() {
 			providers = append(providers, providerRow{id: id, prov: p})
@@ -150,6 +152,58 @@ var modelsUseCmd = &cobra.Command{
 	},
 }
 
+var modelsStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Check provider readiness",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cwd, err := ResolveCwd(cmd)
+		if err != nil {
+			return err
+		}
+		cfg, err := config.Init(cwd, "", false)
+		if err != nil {
+			return err
+		}
+
+		providers := make([]providerRow, 0)
+		for id, p := range cfg.Providers.Seq2() {
+			providers = append(providers, providerRow{id: id, prov: p})
+		}
+		sort.Slice(providers, func(i, j int) bool {
+			return providers[i].id < providers[j].id
+		})
+
+		ctx := cmd.Context()
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		fmt.Fprintln(os.Stdout, "Provider status:")
+		for _, row := range providers {
+			name := row.id
+			if name == "" {
+				name = row.prov.Name
+			}
+			healthURL, err := buildHealthURL(row.prov)
+			if err != nil {
+				fmt.Fprintf(os.Stdout, "- %s: skipped (%s)\n", name, err.Error())
+				continue
+			}
+			ready, detail := providerHealthCheck(ctx, row.prov, healthURL)
+			if ready {
+				fmt.Fprintf(os.Stdout, "- %s: ready\n", name)
+			} else {
+				if detail != "" {
+					fmt.Fprintf(os.Stdout, "- %s: unreachable (%s)\n", name, detail)
+				} else {
+					fmt.Fprintf(os.Stdout, "- %s: unreachable\n", name)
+				}
+			}
+		}
+		return nil
+	},
+}
+
 func parseModelType(value string) (config.SelectedModelType, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case string(config.SelectedModelTypeLarge), "":
@@ -177,22 +231,12 @@ func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 		return nil
 	}
 
-	baseURL := strings.TrimSpace(prov.BaseURL)
-	if baseURL == "" {
-		return fmt.Errorf("provider base_url is required to perform readiness checks")
+	healthURL, err := buildHealthURL(prov)
+	if err != nil {
+		return err
 	}
-	baseURL = strings.TrimRight(baseURL, "/")
 
-	healthPath := strings.TrimSpace(prov.StartupHealthPath)
-	if healthPath == "" {
-		healthPath = "/models"
-	}
-	if !strings.HasPrefix(healthPath, "/") {
-		healthPath = "/" + healthPath
-	}
-	healthURL := baseURL + healthPath
-
-	if providerHealthy(ctx, healthURL) {
+	if ok, _ := providerHealthCheck(ctx, prov, healthURL); ok {
 		return nil
 	}
 
@@ -239,7 +283,7 @@ func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 			}
 			// Command exited successfully; continue polling in case it spawned a background process.
 		case <-ticker.C:
-			if providerHealthy(ctx, healthURL) {
+			if ok, _ := providerHealthCheck(ctx, prov, healthURL); ok {
 				fmt.Fprintln(os.Stdout, "Provider is ready.")
 				return nil
 			}
@@ -247,27 +291,66 @@ func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 	}
 }
 
-func providerHealthy(ctx context.Context, url string) bool {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return false
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode >= 200 && resp.StatusCode < 300
-}
-
 func buildShellCommand(command string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
 		return exec.Command("cmd", "/c", command)
 	}
 	return exec.Command("bash", "-lc", command)
+}
+
+func buildHealthURL(prov config.ProviderConfig) (string, error) {
+	baseURL := strings.TrimSpace(prov.BaseURL)
+	if baseURL == "" {
+		return "", fmt.Errorf("provider base_url not configured")
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	healthPath := strings.TrimSpace(prov.StartupHealthPath)
+	if healthPath == "" {
+		healthPath = "/models"
+	}
+	if !strings.HasPrefix(healthPath, "/") {
+		healthPath = "/" + healthPath
+	}
+
+	return baseURL + healthPath, nil
+}
+
+func providerHealthCheck(ctx context.Context, prov config.ProviderConfig, healthURL string) (bool, string) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+	if err != nil {
+		return false, err.Error()
+	}
+	applyHealthHeaders(req, prov)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, err.Error()
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return true, ""
+	}
+	return false, fmt.Sprintf("status %d", resp.StatusCode)
+}
+
+func applyHealthHeaders(req *http.Request, prov config.ProviderConfig) {
+	key := strings.TrimSpace(prov.APIKey)
+	if key != "" {
+		switch prov.Type {
+		case catwalk.TypeOpenAI, "":
+			req.Header.Set("Authorization", "Bearer "+key)
+		case catwalk.TypeAnthropic:
+			req.Header.Set("x-api-key", key)
+		case catwalk.TypeAzure:
+			req.Header.Set("api-key", key)
+		}
+	}
+	for k, v := range prov.ExtraHeaders {
+		req.Header.Set(k, v)
+	}
 }
