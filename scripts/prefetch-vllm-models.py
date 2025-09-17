@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""Prefetch the Hugging Face models used by the vLLM preset.
+"""Prefetch local copies of the vLLM models and keep them on disk.
 
-This downloads model snapshots into the local Hugging Face cache so the vLLM
-server can start without re-fetching large weights every time.
+Usage::
 
-Usage:
-  export HF_TOKEN=...  # if the repos are gated
-  export HF_HOME=$HOME/.cache/huggingface  # optional custom cache path
-  pip install huggingface_hub
-  python scripts/prefetch-vllm-models.py
+    # optional but recommended
+    export HF_HOME=$HOME/.cache/huggingface
+    export HF_TOKEN=...  # for gated repos
+
+    pip install huggingface_hub
+    python scripts/prefetch-vllm-models.py
 """
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Iterable
 
 from huggingface_hub import snapshot_download
@@ -25,22 +26,22 @@ VLLM_MODELS: Iterable[str] = (
 )
 
 
-def prefetch(repo_id: str) -> None:
-    cache_dir = os.environ.get("HF_HOME")
+def prefetch(repo_id: str) -> Path:
+    cache_dir_env = os.environ.get("HF_HOME")
     kwargs = {
         "repo_id": repo_id,
         "resume_download": True,
         "local_files_only": False,
     }
-    if cache_dir:
-        kwargs["cache_dir"] = cache_dir
-    token = os.environ.get("HF_TOKEN")
-    if token:
+    if cache_dir_env:
+        kwargs["cache_dir"] = cache_dir_env
+    if token := os.environ.get("HF_TOKEN"):
         kwargs["token"] = token
 
-    print(f"→ Downloading {repo_id} ...", flush=True)
-    snapshot_download(**kwargs)
-    print(f"✓ {repo_id} cached", flush=True)
+    print(f"→ Downloading {repo_id}")
+    path = Path(snapshot_download(**kwargs))
+    print(f"✓ Cached at {path}")
+    return path
 
 
 def main() -> None:
