@@ -16,5 +16,8 @@ Notes:
 	if !includeEnvironmentInfoForModel(config.SelectedModelTypeLarge) {
 		return agentPrompt + "\n"
 	}
-	return fmt.Sprintf("%s\n%s\n", agentPrompt, getEnvironmentInfo())
+	if env := getEnvironmentInfo(); env != "" {
+		return fmt.Sprintf("%s\n%s\n", agentPrompt, env)
+	}
+	return agentPrompt + "\n"
 }

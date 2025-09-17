@@ -140,16 +140,16 @@ type Permissions struct {
 }
 
 type Options struct {
-    ContextPaths              []string    `json:"context_paths,omitempty" jsonschema:"description=Paths to files containing context information for the AI,example=.cursorrules,example=CRUSH.md"`
-    TUI                       *TUIOptions `json:"tui,omitempty" jsonschema:"description=Terminal user interface options"`
-    Debug                     bool        `json:"debug,omitempty" jsonschema:"description=Enable debug logging,default=false"`
-    DebugLSP                  bool        `json:"debug_lsp,omitempty" jsonschema:"description=Enable debug logging for LSP servers,default=false"`
-    DisableAutoSummarize      bool        `json:"disable_auto_summarize,omitempty" jsonschema:"description=Disable automatic conversation summarization,default=false"`
-    DataDirectory             string      `json:"data_directory,omitempty" jsonschema:"description=Directory for storing application data (relative to working directory),default=.crush,example=.crush"` // Relative to the cwd
-    DisabledTools             []string    `json:"disabled_tools" jsonschema:"description=Tools to disable"`
-    DisableProviderAutoUpdate bool        `json:"disable_provider_auto_update,omitempty" jsonschema:"description=Disable providers auto-update,default=false"`
-    // When true, foreground shell commands default to streaming output.
-    StreamShell               bool        `json:"stream_shell,omitempty" jsonschema:"description=Default to streaming output for foreground shell commands,default=false"`
+	ContextPaths              []string    `json:"context_paths,omitempty" jsonschema:"description=Paths to files containing context information for the AI,example=.cursorrules,example=CRUSH.md"`
+	TUI                       *TUIOptions `json:"tui,omitempty" jsonschema:"description=Terminal user interface options"`
+	Debug                     bool        `json:"debug,omitempty" jsonschema:"description=Enable debug logging,default=false"`
+	DebugLSP                  bool        `json:"debug_lsp,omitempty" jsonschema:"description=Enable debug logging for LSP servers,default=false"`
+	DisableAutoSummarize      bool        `json:"disable_auto_summarize,omitempty" jsonschema:"description=Disable automatic conversation summarization,default=false"`
+	DataDirectory             string      `json:"data_directory,omitempty" jsonschema:"description=Directory for storing application data (relative to working directory),default=.crush,example=.crush"` // Relative to the cwd
+	DisabledTools             []string    `json:"disabled_tools" jsonschema:"description=Tools to disable"`
+	DisableProviderAutoUpdate bool        `json:"disable_provider_auto_update,omitempty" jsonschema:"description=Disable providers auto-update,default=false"`
+	// When true, foreground shell commands default to streaming output.
+	StreamShell bool `json:"stream_shell,omitempty" jsonschema:"description=Default to streaming output for foreground shell commands,default=false"`
 }
 
 type MCPs map[string]MCPConfig
@@ -351,6 +351,36 @@ func (c *Config) Resolve(key string) (string, error) {
 }
 
 func (c *Config) UpdatePreferredModel(modelType SelectedModelType, model SelectedModel) error {
+	model.Provider = strings.TrimSpace(model.Provider)
+	model.Model = strings.TrimSpace(model.Model)
+	if model.Provider == "" || model.Model == "" {
+		return fmt.Errorf("provider and model are required")
+	}
+	prov, ok := c.Providers.Get(model.Provider)
+	if !ok {
+		return fmt.Errorf("provider not found: %s", model.Provider)
+	}
+	if prov.Disable {
+		return fmt.Errorf("provider %s is disabled", model.Provider)
+	}
+	if c.GetModel(model.Provider, model.Model) == nil {
+		return fmt.Errorf("model not found: %s/%s", model.Provider, model.Model)
+	}
+	if model.MaxTokens < 0 {
+		return fmt.Errorf("max tokens must be non-negative")
+	}
+	model.ReasoningEffort = strings.ToLower(strings.TrimSpace(model.ReasoningEffort))
+	switch model.ReasoningEffort {
+	case "", "low", "medium", "high":
+	default:
+		return fmt.Errorf("invalid reasoning effort: %s", model.ReasoningEffort)
+	}
+	if prov.Type != catwalk.TypeOpenAI {
+		model.ReasoningEffort = ""
+	}
+	if c.Models == nil {
+		c.Models = make(map[SelectedModelType]SelectedModel)
+	}
 	c.Models[modelType] = model
 	if err := c.SetConfigField(fmt.Sprintf("models.%s", modelType), model); err != nil {
 		return fmt.Errorf("failed to update preferred model: %w", err)
@@ -450,7 +480,10 @@ func trimToolsForProvider(tools []string, disableStream bool) []string {
 	if !disableStream {
 		return tools
 	}
-	return []string{}
+	// Non-streaming providers still support most tool workflows because Crush
+	// falls back to non-streaming requests. Avoid stripping capability here so
+	// local providers remain useful.
+	return slices.Clone(tools)
 }
 
 func resolveReadOnlyTools(tools []string) []string {

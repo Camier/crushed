@@ -34,14 +34,16 @@ func CoderPrompt(p string, contextFiles ...string) string {
 
 	cfg := config.Get()
 	envInfo := getEnvironmentInfo()
-	if providerCfg, ok := cfg.Providers.Get(p); ok {
-		if providerCfg.DisableStream {
-			basePrompt = lightweightCoderPrompt
-			envInfo = ""
-			slog.Debug("using lightweight prompt", "provider", p)
+	if cfg != nil {
+		if providerCfg, ok := cfg.Providers.Get(p); ok {
+			if providerCfg.DisableStream {
+				basePrompt = lightweightCoderPrompt
+				envInfo = ""
+				slog.Debug("using lightweight prompt", "provider", p)
+			}
+		} else {
+			slog.Debug("provider not found", "provider", p)
 		}
-	} else {
-		slog.Debug("provider not found", "provider", p)
 	}
 
 	if envInfo != "" {
@@ -71,7 +73,11 @@ var openaiCoderPrompt []byte
 var coderV2Prompt []byte
 
 func getEnvironmentInfo() string {
-	cwd := config.Get().WorkingDir()
+	cfg := config.Get()
+	if cfg == nil {
+		return ""
+	}
+	cwd := cfg.WorkingDir()
 	isGit := isGitRepo(cwd)
 	platform := runtime.GOOS
 	date := time.Now().Format("1/2/2006")
