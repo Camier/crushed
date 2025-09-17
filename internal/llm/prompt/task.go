@@ -2,6 +2,8 @@ package prompt
 
 import (
 	"fmt"
+
+	"github.com/charmbracelet/crush/internal/config"
 )
 
 func TaskPrompt() string {
@@ -11,5 +13,8 @@ Notes:
 2. When relevant, share file names and code snippets relevant to the query
 3. Any file paths you return in your final response MUST be absolute. DO NOT use relative paths.`
 
+	if !includeEnvironmentInfoForModel(config.SelectedModelTypeLarge) {
+		return agentPrompt + "\n"
+	}
 	return fmt.Sprintf("%s\n%s\n", agentPrompt, getEnvironmentInfo())
 }

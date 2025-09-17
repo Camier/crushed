@@ -283,6 +283,11 @@
           "type": "boolean",
           "description": "Disable providers auto-update",
           "default": false
+        },
+        "stream_shell": {
+          "type": "boolean",
+          "description": "Default to streaming output for foreground shell commands",
+          "default": false
         }
       },
       "additionalProperties": false,
@@ -354,6 +359,11 @@
         "disable": {
           "type": "boolean",
           "description": "Whether this provider is disabled",
+          "default": false
+        },
+        "disable_stream": {
+          "type": "boolean",
+          "description": "Disable streaming responses for this provider",
           "default": false
         },
         "system_prompt_prefix": {

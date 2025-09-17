@@ -3,6 +3,7 @@ package prompt
 import (
 	_ "embed"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +14,8 @@ import (
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/llm/tools"
 )
+
+const lightweightCoderPrompt = "You are a terse coding assistant working in a terminal. Reply with the essential command or code only."
 
 func CoderPrompt(p string, contextFiles ...string) string {
 	var basePrompt string
@@ -28,9 +31,25 @@ func CoderPrompt(p string, contextFiles ...string) string {
 	if ok, _ := strconv.ParseBool(os.Getenv("CRUSH_CODER_V2")); ok {
 		basePrompt = string(coderV2Prompt)
 	}
-	envInfo := getEnvironmentInfo()
 
-	basePrompt = fmt.Sprintf("%s\n\n%s\n%s", basePrompt, envInfo, lspInformation())
+	cfg := config.Get()
+	envInfo := getEnvironmentInfo()
+	if providerCfg, ok := cfg.Providers.Get(p); ok {
+		if providerCfg.DisableStream {
+			basePrompt = lightweightCoderPrompt
+			envInfo = ""
+			slog.Debug("using lightweight prompt", "provider", p)
+		}
+	} else {
+		slog.Debug("provider not found", "provider", p)
+	}
+
+	if envInfo != "" {
+		basePrompt = fmt.Sprintf("%s\n\n%s", basePrompt, envInfo)
+	}
+	if lsp := lspInformation(); lsp != "" {
+		basePrompt = fmt.Sprintf("%s\n%s", basePrompt, lsp)
+	}
 
 	contextContent := getContextFromPaths(config.Get().WorkingDir(), contextFiles)
 	if contextContent != "" {

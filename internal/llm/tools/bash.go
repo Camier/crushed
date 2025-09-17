@@ -1,19 +1,69 @@
 package tools
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"strings"
-	"time"
+    "context"
+    "encoding/json"
+    "fmt"
+    "io"
+    "os"
+    "os/exec"
+    "path/filepath"
+    "runtime"
+    "syscall"
+    "strings"
+    "time"
 
-	"github.com/charmbracelet/crush/internal/permission"
-	"github.com/charmbracelet/crush/internal/shell"
+    "github.com/charmbracelet/crush/internal/config"
+    "github.com/charmbracelet/crush/internal/permission"
+    "github.com/charmbracelet/crush/internal/shell"
 )
 
+// streamReader reads from r and invokes cb with chunks as they arrive.
+// It sends a signal to doneCh when the stream is exhausted.
+func streamReader(r io.Reader, cb func(string), doneCh chan<- struct{}) {
+    defer func() { doneCh <- struct{}{} }()
+    buf := make([]byte, 4096)
+    for {
+        n, err := r.Read(buf)
+        if n > 0 {
+            cb(string(buf[:n]))
+        }
+        if err != nil {
+            break
+        }
+    }
+}
+
+// labeled variant with timestamp
+func streamReaderLabeled(r io.Reader, label string, cb func(string), doneCh chan<- struct{}) {
+    defer func() { doneCh <- struct{}{} }()
+    buf := make([]byte, 4096)
+    for {
+        n, err := r.Read(buf)
+        if n > 0 {
+            prefix := time.Now().Format("15:04:05") + " [" + label + "] "
+            cb(prefix + string(buf[:n]))
+        }
+        if err != nil {
+            break
+        }
+    }
+}
+
 type BashParams struct {
-	Command string `json:"command"`
-	Timeout int    `json:"timeout"`
+    Command string `json:"command"`
+    Timeout int    `json:"timeout"`
+    // Optional: run the command as a background process. When true, the tool
+    // will start the command and return immediately with the process details.
+    // Output will not be streamed.
+    IsBackground bool   `json:"is_background,omitempty"`
+    // Optional: directory to run the command in. When empty, uses the current
+    // persistent shell working directory. Relative paths are resolved against
+    // the Crush working directory.
+    Directory    string `json:"directory,omitempty"`
+    // Optional: for foreground execution, stream output as it is produced.
+    // When true and supported, output is streamed into the UI while the command runs.
+    Stream       bool   `json:"stream,omitempty"`
 }
 
 type BashPermissionsParams struct {
@@ -33,7 +83,7 @@ type bashTool struct {
 }
 
 const (
-	BashToolName = "bash"
+    BashToolName = "bash"
 
 	DefaultTimeout  = 1 * 60 * 1000  // 1 minutes in milliseconds
 	MaxTimeout      = 10 * 60 * 1000 // 10 minutes in milliseconds
@@ -152,6 +202,8 @@ Before executing the command, please follow these steps:
 Usage notes:
 - The command argument is required.
 - You can specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). If not specified, commands will timeout after 30 minutes.
+ - To run long‑lived commands (e.g., dev servers) without blocking, set 'is_background' to true. The command will be launched and the tool will return the spawned PID.
+ - To run in a specific directory, set 'directory'. Relative paths are resolved from the project root.
 - VERY IMPORTANT: You MUST avoid using search commands like 'find' and 'grep'. Instead use Grep, Glob, or Agent tools to search. You MUST avoid read tools like 'cat', 'head', 'tail', and 'ls', and use FileRead and LS tools to read files.
 - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
 - IMPORTANT: All commands share the same shell session. Shell state (environment variables, virtual environments, current directory, etc.) persist between commands. For example, if you set an environment variable as part of a command, the environment variable will persist for subsequent commands.
@@ -320,28 +372,40 @@ func (b *bashTool) Name() string {
 }
 
 func (b *bashTool) Info() ToolInfo {
-	return ToolInfo{
-		Name:        BashToolName,
-		Description: bashDescription(),
-		Parameters: map[string]any{
-			"command": map[string]any{
-				"type":        "string",
-				"description": "The command to execute",
-			},
-			"timeout": map[string]any{
-				"type":        "number",
-				"description": "Optional timeout in milliseconds (max 600000)",
-			},
-		},
-		Required: []string{"command"},
-	}
+    return ToolInfo{
+        Name:        BashToolName,
+        Description: bashDescription(),
+        Parameters: map[string]any{
+            "command": map[string]any{
+                "type":        "string",
+                "description": "The command to execute",
+            },
+            "timeout": map[string]any{
+                "type":        "number",
+                "description": "Optional timeout in milliseconds (max 600000)",
+            },
+            "is_background": map[string]any{
+                "type":        "boolean",
+                "description": "If true, start the command in background and return immediately with the process ID",
+            },
+            "directory": map[string]any{
+                "type":        "string",
+                "description": "Optional directory to run the command in (relative to project root)",
+            },
+            "stream": map[string]any{
+                "type":        "boolean",
+                "description": "Stream output for foreground commands (best effort)",
+            },
+        },
+        Required: []string{"command"},
+    }
 }
 
 func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error) {
-	var params BashParams
-	if err := json.Unmarshal([]byte(call.Input), &params); err != nil {
-		return NewTextErrorResponse("invalid parameters"), nil
-	}
+    var params BashParams
+    if err := json.Unmarshal([]byte(call.Input), &params); err != nil {
+        return NewTextErrorResponse("invalid parameters"), nil
+    }
 
 	if params.Timeout > MaxTimeout {
 		params.Timeout = MaxTimeout
@@ -353,8 +417,8 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 		return NewTextErrorResponse("missing command"), nil
 	}
 
-	isSafeReadOnly := false
-	cmdLower := strings.ToLower(params.Command)
+    isSafeReadOnly := false
+    cmdLower := strings.ToLower(params.Command)
 
 	for _, safe := range safeCommands {
 		if strings.HasPrefix(cmdLower, safe) {
@@ -369,37 +433,165 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	if sessionID == "" || messageID == "" {
 		return ToolResponse{}, fmt.Errorf("session ID and message ID are required for executing shell command")
 	}
-	if !isSafeReadOnly {
-		shell := shell.GetPersistentShell(b.workingDir)
-		p := b.permissions.Request(
-			permission.CreatePermissionRequest{
-				SessionID:   sessionID,
-				Path:        shell.GetWorkingDir(),
-				ToolCallID:  call.ID,
-				ToolName:    BashToolName,
-				Action:      "execute",
-				Description: fmt.Sprintf("Execute command: %s", params.Command),
-				Params: BashPermissionsParams{
-					Command: params.Command,
-				},
-			},
-		)
-		if !p {
-			return ToolResponse{}, permission.ErrorPermissionDenied
-		}
-	}
-	startTime := time.Now()
-	if params.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(params.Timeout)*time.Millisecond)
-		defer cancel()
-	}
+    if !isSafeReadOnly {
+        shell := shell.GetPersistentShell(b.workingDir)
+        p := b.permissions.Request(
+            permission.CreatePermissionRequest{
+                SessionID:   sessionID,
+                Path:        shell.GetWorkingDir(),
+                ToolCallID:  call.ID,
+                ToolName:    BashToolName,
+                Action:      "execute",
+                Description: fmt.Sprintf("Execute command: %s", params.Command),
+                Params: BashPermissionsParams{
+                    Command: params.Command,
+                },
+            },
+        )
+        if !p {
+            return ToolResponse{}, permission.ErrorPermissionDenied
+        }
+    }
+    startTime := time.Now()
+    var currentWorkingDir string
 
-	persistentShell := shell.GetPersistentShell(b.workingDir)
-	stdout, stderr, err := persistentShell.Exec(ctx, params.Command)
+    // Optional directory resolution (relative to project root)
+    if params.Directory != "" {
+        dir := params.Directory
+        if !filepath.IsAbs(dir) {
+            dir = filepath.Join(b.workingDir, dir)
+        }
+        if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+            // For foreground, we change the persistent shell dir; for background we set cmd.Dir
+            currentWorkingDir = dir
+        } else {
+            return NewTextErrorResponse(fmt.Sprintf("invalid directory: %s", params.Directory)), nil
+        }
+    }
 
-	// Get the current working directory after command execution
-	currentWorkingDir := persistentShell.GetWorkingDir()
+    // Background execution path: start an OS subprocess and return immediately
+    if params.IsBackground {
+        // Choose platform command wrapper
+        var name string
+        var args []string
+        if runtime.GOOS == "windows" {
+            name = "cmd"
+            args = []string{"/c", params.Command}
+        } else {
+            name = "bash"
+            args = []string{"-lc", params.Command}
+        }
+        cmd := exec.CommandContext(ctx, name, args...)
+        if currentWorkingDir != "" {
+            cmd.Dir = currentWorkingDir
+        } else {
+            cmd.Dir = shell.GetPersistentShell(b.workingDir).GetWorkingDir()
+        }
+        // Inherit environment
+        cmd.Env = os.Environ()
+        if runtime.GOOS != "windows" {
+            cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+        }
+        if err := cmd.Start(); err != nil {
+            return ToolResponse{}, fmt.Errorf("failed to start background command: %w", err)
+        }
+        pid := cmd.Process.Pid
+        pgid := pid
+        if runtime.GOOS != "windows" {
+            // When Setpgid is enabled, PGID equals PID for the group leader
+            pgid = pid
+        }
+        // Do not wait; process continues in background
+        metadata := BashResponseMetadata{
+            StartTime:        startTime.UnixMilli(),
+            EndTime:          time.Now().UnixMilli(),
+            Output:           fmt.Sprintf("Started background process PID: %d", pid),
+            WorkingDirectory: cmd.Dir,
+        }
+        msg := fmt.Sprintf("<background>\nPID: %d\nPGID: %d\nDirectory: %s\nCommand: %s\n</background>", pid, pgid, cmd.Dir, params.Command)
+        return WithResponseMetadata(NewTextResponse(msg), metadata), nil
+    }
+
+    // Foreground: optionally stream output, else use persistent shell
+    if params.Timeout > 0 {
+        var cancel context.CancelFunc
+        ctx, cancel = context.WithTimeout(ctx, time.Duration(params.Timeout)*time.Millisecond)
+        defer cancel()
+    }
+
+    // Streaming path (best-effort, uses OS shell not the persistent interpreter)
+    // Decide if we should stream by param or config option
+    streamWanted := params.Stream
+    if !streamWanted {
+        if cfg := config.Get(); cfg != nil && cfg.Options != nil && cfg.Options.StreamShell {
+            streamWanted = true
+        }
+    }
+    if streamWanted {
+        if cb, ok := GetProgressCallback(ctx); ok {
+            name := "bash"
+            args := []string{"-lc", params.Command}
+            if runtime.GOOS == "windows" {
+                name = "cmd"
+                args = []string{"/c", params.Command}
+            }
+            cmd := exec.CommandContext(ctx, name, args...)
+            if currentWorkingDir != "" {
+                cmd.Dir = currentWorkingDir
+            } else {
+                cmd.Dir = shell.GetPersistentShell(b.workingDir).GetWorkingDir()
+            }
+            cmd.Env = os.Environ()
+
+            stdoutPipe, _ := cmd.StdoutPipe()
+            stderrPipe, _ := cmd.StderrPipe()
+            if err := cmd.Start(); err != nil {
+                return ToolResponse{}, fmt.Errorf("failed to start command: %w", err)
+            }
+
+            // Readers
+            doneCh := make(chan struct{}, 2)
+            go streamReaderLabeled(stdoutPipe, "stdout", cb, doneCh)
+            go streamReaderLabeled(stderrPipe, "stderr", cb, doneCh)
+
+            // Wait for pipes
+            <-doneCh
+            <-doneCh
+            // Wait process
+            err := cmd.Wait()
+
+            // No aggregated buffer kept; rely on callback to show output. Return a short result.
+            currentWorkingDir = cmd.Dir
+            interrupted := shell.IsInterrupt(err)
+            exitCode := shell.ExitCode(err)
+            var output string
+            if interrupted {
+                output = "Command was aborted before completion"
+            } else if exitCode != 0 {
+                output = fmt.Sprintf("Exit code %d", exitCode)
+            } else {
+                output = BashNoOutput
+            }
+            metadata := BashResponseMetadata{
+                StartTime:        startTime.UnixMilli(),
+                EndTime:          time.Now().UnixMilli(),
+                Output:           output,
+                WorkingDirectory: currentWorkingDir,
+            }
+            if output == BashNoOutput {
+                return WithResponseMetadata(NewTextResponse(BashNoOutput), metadata), nil
+            }
+            return WithResponseMetadata(NewTextResponse(output), metadata), nil
+        }
+    }
+
+    // Default foreground path: persistent shell (preserves session state)
+    persistentShell := shell.GetPersistentShell(b.workingDir)
+    if currentWorkingDir != "" {
+        _ = persistentShell.SetWorkingDir(currentWorkingDir)
+    }
+    stdout, stderr, err := persistentShell.Exec(ctx, params.Command)
+    currentWorkingDir = persistentShell.GetWorkingDir()
 	interrupted := shell.IsInterrupt(err)
 	exitCode := shell.ExitCode(err)
 	if exitCode == 0 && !interrupted && err != nil {

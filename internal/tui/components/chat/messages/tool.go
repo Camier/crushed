@@ -700,14 +700,31 @@ func (m *toolCallCmp) SetIsNested(isNested bool) {
 
 // renderPending displays the tool name with a loading animation for pending tool calls
 func (m *toolCallCmp) renderPending() string {
-	t := styles.CurrentTheme()
-	icon := t.S().Base.Foreground(t.GreenDark).Render(styles.ToolPending)
-	if m.isNested {
-		tool := t.S().Base.Foreground(t.FgHalfMuted).Render(prettifyToolName(m.call.Name))
-		return fmt.Sprintf("%s %s %s", icon, tool, m.anim.View())
-	}
-	tool := t.S().Base.Foreground(t.Blue).Render(prettifyToolName(m.call.Name))
-	return fmt.Sprintf("%s %s %s", icon, tool, m.anim.View())
+    t := styles.CurrentTheme()
+    icon := t.S().Base.Foreground(t.GreenDark).Render(styles.ToolPending)
+    if m.isNested {
+        tool := t.S().Base.Foreground(t.FgHalfMuted).Render(prettifyToolName(m.call.Name))
+        // Show a short tail of any incremental output (appended into call input)
+        tail := strings.TrimSpace(m.call.Input)
+        if tail != "" {
+            if len(tail) > 160 {
+                tail = "…" + tail[len(tail)-160:]
+            }
+            out := t.S().Muted.Render(m.fit(tail, m.textWidth()))
+            return fmt.Sprintf("%s %s %s\n%s", icon, tool, m.anim.View(), out)
+        }
+        return fmt.Sprintf("%s %s %s", icon, tool, m.anim.View())
+    }
+    tool := t.S().Base.Foreground(t.Blue).Render(prettifyToolName(m.call.Name))
+    tail := strings.TrimSpace(m.call.Input)
+    if tail != "" {
+        if len(tail) > 200 {
+            tail = "…" + tail[len(tail)-200:]
+        }
+        out := t.S().Muted.Render(m.fit(tail, m.textWidth()))
+        return fmt.Sprintf("%s %s %s\n%s", icon, tool, m.anim.View(), out)
+    }
+    return fmt.Sprintf("%s %s %s", icon, tool, m.anim.View())
 }
 
 // style returns the lipgloss style for the tool call component.

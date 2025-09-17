@@ -1,31 +1,149 @@
 {
   "$schema": "https://charm.land/crush.json",
   "providers": {
-    "llamacpp": {
-      "name": "llama.cpp Direct",
-      "base_url": "http://localhost:8080/v1/",
+    "llamacpp-14b": {
+      "name": "llama.cpp Qwen2.5 14B (local)",
+      "base_url": "http://127.0.0.1:8080/v1/",
       "type": "openai",
+      "disable_stream": true,
       "models": [
         {
           "name": "Qwen2.5-14B-Instruct",
           "id": "qwen2.5-14b-instruct",
           "context_window": 32768,
-          "default_max_tokens": 4096
+          "default_max_tokens": 1024
+        }
+      ]
+    },
+    "llama-qwen7b": {
+      "name": "llama.cpp Qwen 7B (32k)",
+      "base_url": "http://127.0.0.1:8081/v1/",
+      "type": "openai",
+      "models": [
+        {
+          "name": "Qwen2.5-7B-Instruct",
+          "id": "qwen2.5-7b-instruct",
+          "context_window": 32768,
+          "default_max_tokens": 1024
+        }
+      ]
+    },
+    "llama-dolphin7b": {
+      "name": "llama.cpp Dolphin 7B (uncensored, 32k)",
+      "base_url": "http://127.0.0.1:8082/v1/",
+      "type": "openai",
+      "disable_stream": true,
+      "models": [
+        {
+          "name": "dolphin-2.9.3-mistral-7B-32k",
+          "id": "dolphin-2.9.3-mistral-7b-32k",
+          "context_window": 32768,
+          "default_max_tokens": 1024
+        }
+      ]
+    },
+    "llama-coder7b": {
+      "name": "llama.cpp Qwen Coder 7B (32k)",
+      "base_url": "http://127.0.0.1:8083/v1/",
+      "type": "openai",
+      "models": [
+        {
+          "name": "Qwen2.5-Coder-7B-Instruct",
+          "id": "qwen2.5-coder-7b-instruct",
+          "context_window": 32768,
+          "default_max_tokens": 1024
+        }
+      ]
+    },
+    "ollama": {
+      "name": "Ollama (OpenAI compatible)",
+      "base_url": "http://127.0.0.1:11434/v1/",
+      "type": "openai",
+      "disable_stream": true,
+      "models": [
+        {
+          "name": "Qwen2.5 Coder 7B",
+          "id": "qwen2.5-coder:7b",
+          "context_window": 8192,
+          "default_max_tokens": 1024
+        }
+      ]
+    },
+    "llama-nous13b": {
+      "name": "llama.cpp Nous Hermes 13B Uncensored",
+      "base_url": "http://127.0.0.1:8084/v1/",
+      "type": "openai",
+      "disable_stream": true,
+      "models": [
+        {
+          "name": "Nous-Hermes Llama-2 13B Uncensored",
+          "id": "nous-hermes-13b-uncensored",
+          "context_window": 4096,
+          "default_max_tokens": 1024
+        }
+      ]
+    },
+    "llama-airoboros13b": {
+      "name": "llama.cpp Airoboros L2 13B 2.2 Uncensored",
+      "base_url": "http://127.0.0.1:8085/v1/",
+      "type": "openai",
+      "disable_stream": true,
+      "models": [
+        {
+          "name": "Airoboros L2 13B 2.2 Uncensored",
+          "id": "airoboros-l2-13b-2.2-uncensored",
+          "context_window": 4096,
+          "default_max_tokens": 1024
+        }
+      ]
+    },
+    "llama-wizard13b": {
+      "name": "llama.cpp WizardLM 13B Uncensored",
+      "base_url": "http://127.0.0.1:8086/v1/",
+      "type": "openai",
+      "disable_stream": true,
+      "models": [
+        {
+          "name": "WizardLM 13B Uncensored",
+          "id": "wizardlm-13b-uncensored",
+          "context_window": 4096,
+          "default_max_tokens": 1024
+        }
+      ]
+    },
+    "llama-mythomax13b": {
+      "name": "llama.cpp MythoMax L2 13B",
+      "base_url": "http://127.0.0.1:8087/v1/",
+      "type": "openai",
+      "disable_stream": true,
+      "models": [
+        {
+          "name": "MythoMax-L2 13B",
+          "id": "mythomax-l2-13b",
+          "context_window": 4096,
+          "default_max_tokens": 1024
         }
       ]
     }
   },
   "models": {
-    "large": {
-      "model": "qwen2.5-14b-instruct",
-      "provider": "llamacpp"
-    },
-    "small": {
-      "model": "qwen2.5-14b-instruct",
-      "provider": "llamacpp"
-    }
+    "large": { "model": "qwen2.5-14b-instruct", "provider": "llamacpp-14b" },
+    "small": { "model": "dolphin-2.9.3-mistral-7b-32k", "provider": "llama-dolphin7b" }
   },
   "options": {
-    "context_paths": []
+    "context_paths": [],
+    "disabled_tools": [
+      "bash",
+      "download",
+      "edit",
+      "multiedit",
+      "fetch",
+      "glob",
+      "grep",
+      "ls",
+      "sourcegraph",
+      "view",
+      "write"
+    ]
   }
 }

@@ -184,6 +184,7 @@ func (c *Config) configureProviders(env env.Env, resolver VariableResolver, know
 			APIKey:             p.APIKey,
 			Type:               p.Type,
 			Disable:            config.Disable,
+			DisableStream:      config.DisableStream,
 			SystemPromptPrefix: config.SystemPromptPrefix,
 			ExtraHeaders:       headers,
 			ExtraBody:          config.ExtraBody,

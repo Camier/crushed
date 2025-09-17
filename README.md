@@ -318,6 +318,31 @@ Local models can also be configured via OpenAI-compatible API. Here are two comm
 }
 ```
 
+#### llama.cpp
+
+```json
+{
+  "providers": {
+    "llamacpp": {
+      "name": "llama.cpp Direct",
+      "base_url": "http://localhost:8080/v1/",
+      "type": "openai",
+      "disable_stream": true,
+      "models": [
+        {
+          "name": "Qwen2.5-14B-Instruct",
+          "id": "qwen2.5-14b-instruct",
+          "context_window": 8192,
+          "default_max_tokens": 2048
+        }
+      ]
+    }
+  }
+}
+```
+
+> llama.cpp's OpenAI-compatible server does not currently support streaming responses. Setting `disable_stream` tells Crush to fall back to a non-streaming flow for this provider.
+
 ### Custom Providers
 
 Crush supports custom provider configurations for both OpenAI-compatible and
@@ -352,6 +377,91 @@ API. Don't forget to set `DEEPSEEK_API_KEY` in your environment.
   }
 }
 ```
+
+##### Qwen DashScope / ModelScope / OpenRouter
+
+You can route Crush through any OpenAI-compatible provider. Below are common presets
+for Qwen backends (pick one, and set the appropriate API key):
+
+DashScope (Mainland China):
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "dashscope-cn": {
+      "type": "openai",
+      "name": "DashScope (CN)",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "api_key": "$DASHSCOPE_API_KEY",
+      "models": [
+        { "id": "qwen3-coder-plus", "name": "Qwen3 Coder Plus", "context_window": 131072, "default_max_tokens": 8192 }
+      ]
+    }
+  }
+}
+```
+
+DashScope (International):
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "dashscope-intl": {
+      "type": "openai",
+      "name": "DashScope (Intl)",
+      "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+      "api_key": "$DASHSCOPE_API_KEY",
+      "models": [
+        { "id": "qwen3-coder-plus", "name": "Qwen3 Coder Plus", "context_window": 131072, "default_max_tokens": 8192 }
+      ]
+    }
+  }
+}
+```
+
+ModelScope (CN Free Tier):
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "modelscope-cn": {
+      "type": "openai",
+      "name": "ModelScope (CN)",
+      "base_url": "https://api-inference.modelscope.cn/v1",
+      "api_key": "$MODELSCOPE_API_KEY",
+      "models": [
+        { "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct", "name": "Qwen3 Coder 480B Instruct", "context_window": 131072, "default_max_tokens": 8192 }
+      ]
+    }
+  }
+}
+```
+
+OpenRouter (Global):
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "openrouter": {
+      "type": "openai",
+      "name": "OpenRouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "$OPENROUTER_API_KEY",
+      "models": [
+        { "id": "qwen/qwen3-coder:free", "name": "Qwen3 Coder (Free)", "context_window": 131072, "default_max_tokens": 8192 }
+      ]
+    }
+  }
+}
+```
+
+Tip: you can switch the preferred model quickly with `crush models use -t large <provider> <model>`.
+
+If your OpenAI-compatible backend does not implement streaming (SSE), set `disable_stream: true` on the provider. Crush will automatically fall back to a non‑streaming interaction for that provider.
 
 #### Anthropic-Compatible APIs
 

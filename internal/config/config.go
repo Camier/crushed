@@ -26,6 +26,7 @@ var defaultContextPaths = []string{
 	".github/copilot-instructions.md",
 	".cursorrules",
 	".cursor/rules/",
+	".qwen/QWEN.md",
 	"CLAUDE.md",
 	"CLAUDE.local.md",
 	"GEMINI.md",
@@ -79,6 +80,8 @@ type ProviderConfig struct {
 	APIKey string `json:"api_key,omitempty" jsonschema:"description=API key for authentication with the provider,example=$OPENAI_API_KEY"`
 	// Marks the provider as disabled.
 	Disable bool `json:"disable,omitempty" jsonschema:"description=Whether this provider is disabled,default=false"`
+	// Disable streaming requests for providers that do not support SSE.
+	DisableStream bool `json:"disable_stream,omitempty" jsonschema:"description=Disable streaming responses for this provider,default=false"`
 
 	// Custom system prompt prefix.
 	SystemPromptPrefix string `json:"system_prompt_prefix,omitempty" jsonschema:"description=Custom prefix to add to system prompts for this provider"`
@@ -137,14 +140,16 @@ type Permissions struct {
 }
 
 type Options struct {
-	ContextPaths              []string    `json:"context_paths,omitempty" jsonschema:"description=Paths to files containing context information for the AI,example=.cursorrules,example=CRUSH.md"`
-	TUI                       *TUIOptions `json:"tui,omitempty" jsonschema:"description=Terminal user interface options"`
-	Debug                     bool        `json:"debug,omitempty" jsonschema:"description=Enable debug logging,default=false"`
-	DebugLSP                  bool        `json:"debug_lsp,omitempty" jsonschema:"description=Enable debug logging for LSP servers,default=false"`
-	DisableAutoSummarize      bool        `json:"disable_auto_summarize,omitempty" jsonschema:"description=Disable automatic conversation summarization,default=false"`
-	DataDirectory             string      `json:"data_directory,omitempty" jsonschema:"description=Directory for storing application data (relative to working directory),default=.crush,example=.crush"` // Relative to the cwd
-	DisabledTools             []string    `json:"disabled_tools" jsonschema:"description=Tools to disable"`
-	DisableProviderAutoUpdate bool        `json:"disable_provider_auto_update,omitempty" jsonschema:"description=Disable providers auto-update,default=false"`
+    ContextPaths              []string    `json:"context_paths,omitempty" jsonschema:"description=Paths to files containing context information for the AI,example=.cursorrules,example=CRUSH.md"`
+    TUI                       *TUIOptions `json:"tui,omitempty" jsonschema:"description=Terminal user interface options"`
+    Debug                     bool        `json:"debug,omitempty" jsonschema:"description=Enable debug logging,default=false"`
+    DebugLSP                  bool        `json:"debug_lsp,omitempty" jsonschema:"description=Enable debug logging for LSP servers,default=false"`
+    DisableAutoSummarize      bool        `json:"disable_auto_summarize,omitempty" jsonschema:"description=Disable automatic conversation summarization,default=false"`
+    DataDirectory             string      `json:"data_directory,omitempty" jsonschema:"description=Directory for storing application data (relative to working directory),default=.crush,example=.crush"` // Relative to the cwd
+    DisabledTools             []string    `json:"disabled_tools" jsonschema:"description=Tools to disable"`
+    DisableProviderAutoUpdate bool        `json:"disable_provider_auto_update,omitempty" jsonschema:"description=Disable providers auto-update,default=false"`
+    // When true, foreground shell commands default to streaming output.
+    StreamShell               bool        `json:"stream_shell,omitempty" jsonschema:"description=Default to streaming output for foreground shell commands,default=false"`
 }
 
 type MCPs map[string]MCPConfig
@@ -441,6 +446,13 @@ func resolveAllowedTools(allTools []string, disabledTools []string) []string {
 	return filterSlice(allTools, disabledTools, false)
 }
 
+func trimToolsForProvider(tools []string, disableStream bool) []string {
+	if !disableStream {
+		return tools
+	}
+	return []string{}
+}
+
 func resolveReadOnlyTools(tools []string) []string {
 	readOnlyTools := []string{"glob", "grep", "ls", "sourcegraph", "view"}
 	// filter to only include tools that are in allowedtools (include mode)
@@ -462,6 +474,11 @@ func filterSlice(data []string, mask []string, include bool) []string {
 func (c *Config) SetupAgents() {
 	allowedTools := resolveAllowedTools(allToolNames(), c.Options.DisabledTools)
 
+	provider := c.GetProviderForModel(SelectedModelTypeLarge)
+	if provider == nil {
+		provider = &ProviderConfig{}
+	}
+
 	agents := map[string]Agent{
 		"coder": {
 			ID:           "coder",
@@ -469,7 +486,7 @@ func (c *Config) SetupAgents() {
 			Description:  "An agent that helps with executing coding tasks.",
 			Model:        SelectedModelTypeLarge,
 			ContextPaths: c.Options.ContextPaths,
-			AllowedTools: allowedTools,
+			AllowedTools: trimToolsForProvider(allowedTools, provider.DisableStream),
 		},
 		"task": {
 			ID:           "task",
@@ -477,7 +494,7 @@ func (c *Config) SetupAgents() {
 			Description:  "An agent that helps with searching for context and finding implementation details.",
 			Model:        SelectedModelTypeLarge,
 			ContextPaths: c.Options.ContextPaths,
-			AllowedTools: resolveReadOnlyTools(allowedTools),
+			AllowedTools: resolveReadOnlyTools(trimToolsForProvider(allowedTools, provider.DisableStream)),
 			// NO MCPs or LSPs by default
 			AllowedMCP: map[string][]string{},
 			AllowedLSP: []string{},

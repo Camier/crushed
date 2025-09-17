@@ -315,6 +315,11 @@ func (o *openaiClient) send(ctx context.Context, messages []message.Message, too
 }
 
 func (o *openaiClient) stream(ctx context.Context, messages []message.Message, tools []tools.BaseTool) <-chan ProviderEvent {
+	if o.providerOptions.disableStream {
+		slog.Debug("Streaming disabled for provider, using non-streaming fallback", "provider", o.providerOptions.config.ID)
+		return o.streamWithoutStreaming(ctx, messages, tools)
+	}
+
 	params := o.preparedParams(o.convertMessages(messages), o.convertTools(tools))
 	params.StreamOptions = openai.ChatCompletionStreamOptionsParam{
 		IncludeUsage: openai.Bool(true),
@@ -471,6 +476,21 @@ func (o *openaiClient) stream(ctx context.Context, messages []message.Message, t
 				return
 			}
 
+			if shouldUseNonStreamingFallback(err) {
+				slog.Warn("Streaming failed, falling back to non-streaming request", "provider", o.providerOptions.config.ID, "error", err)
+				resp, sendErr := o.send(ctx, messages, tools)
+				if sendErr != nil {
+					eventChan <- ProviderEvent{Type: EventError, Error: sendErr}
+				} else {
+					if resp.Content != "" {
+						eventChan <- ProviderEvent{Type: EventContentDelta, Content: resp.Content}
+					}
+					eventChan <- ProviderEvent{Type: EventComplete, Response: resp}
+				}
+				close(eventChan)
+				return
+			}
+
 			// If there is an error we are going to see if we can retry the call
 			retry, after, retryErr := o.shouldRetry(attempts, err)
 			if retryErr != nil {
@@ -496,6 +516,53 @@ func (o *openaiClient) stream(ctx context.Context, messages []message.Message, t
 			close(eventChan)
 			return
 		}
+	}()
+
+	return eventChan
+}
+
+func shouldUseNonStreamingFallback(err error) bool {
+    if err == nil {
+        return false
+    }
+    if errors.Is(err, io.ErrUnexpectedEOF) {
+        return true
+    }
+    if strings.Contains(err.Error(), "unexpected end of JSON input") {
+        return true
+    }
+    var apiErr *openai.Error
+    if errors.As(err, &apiErr) {
+        msg := strings.ToLower(apiErr.Message)
+        if strings.Contains(msg, "unexpected end of json input") {
+            return true
+        }
+        // Many OpenAI-compatible local servers don't support streaming + tools together.
+        // Fall back to non-streaming in this case.
+        if strings.Contains(msg, "cannot use tools with stream") {
+            return true
+        }
+        // Be conservative otherwise.
+        return false
+    }
+    return false
+}
+
+func (o *openaiClient) streamWithoutStreaming(ctx context.Context, messages []message.Message, tools []tools.BaseTool) <-chan ProviderEvent {
+	eventChan := make(chan ProviderEvent, 2)
+
+	go func() {
+		resp, err := o.send(ctx, messages, tools)
+		if err != nil {
+			eventChan <- ProviderEvent{Type: EventError, Error: err}
+			close(eventChan)
+			return
+		}
+		if resp.Content != "" {
+			eventChan <- ProviderEvent{Type: EventContentDelta, Content: resp.Content}
+		}
+		eventChan <- ProviderEvent{Type: EventComplete, Response: resp}
+		close(eventChan)
 	}()
 
 	return eventChan

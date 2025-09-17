@@ -68,6 +68,7 @@ type providerClientOptions struct {
 	modelType          config.SelectedModelType
 	model              func(config.SelectedModelType) catwalk.Model
 	disableCache       bool
+	disableStream      bool
 	systemMessage      string
 	systemPromptPrefix string
 	maxTokens          int64
@@ -107,8 +108,26 @@ func (p *baseProvider[C]) SendMessages(ctx context.Context, messages []message.M
 }
 
 func (p *baseProvider[C]) StreamResponse(ctx context.Context, messages []message.Message, tools []tools.BaseTool) <-chan ProviderEvent {
-	messages = p.cleanMessages(messages)
-	return p.client.stream(ctx, messages, tools)
+    messages = p.cleanMessages(messages)
+    if p.options.disableStream {
+        // Generic non-streaming fallback for providers without SSE support
+        eventChan := make(chan ProviderEvent, 2)
+        go func() {
+            resp, err := p.client.send(ctx, messages, tools)
+            if err != nil {
+                eventChan <- ProviderEvent{Type: EventError, Error: err}
+                close(eventChan)
+                return
+            }
+            if resp.Content != "" {
+                eventChan <- ProviderEvent{Type: EventContentDelta, Content: resp.Content}
+            }
+            eventChan <- ProviderEvent{Type: EventComplete, Response: resp}
+            close(eventChan)
+        }()
+        return eventChan
+    }
+    return p.client.stream(ctx, messages, tools)
 }
 
 func (p *baseProvider[C]) Model() catwalk.Model {
@@ -165,6 +184,7 @@ func NewProvider(cfg config.ProviderConfig, opts ...ProviderClientOption) (Provi
 		extraBody:          cfg.ExtraBody,
 		extraParams:        cfg.ExtraParams,
 		systemPromptPrefix: cfg.SystemPromptPrefix,
+		disableStream:      cfg.DisableStream,
 		model: func(tp config.SelectedModelType) catwalk.Model {
 			return *config.Get().GetModelByType(tp)
 		},
