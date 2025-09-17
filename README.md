@@ -236,6 +236,32 @@ using `$(echo $VAR)` syntax.
 }
 ```
 
+##### Context7 (HTTP MCP)
+
+Context7 provides MCP endpoints secured with bearer tokens (keys look like `ctx7sk-...`).
+Set the key in your shell, then add the MCP entry:
+
+```bash
+export CONTEXT7_API_KEY="ctx7sk-..."
+```
+
+```json
+{
+  "$schema": "https://charm.land/crush.json",
+  "mcp": {
+    "context7": {
+      "type": "http",
+      "url": "https://api.context7.dev/mcp/",
+      "headers": {
+        "Authorization": "$(echo Bearer $CONTEXT7_API_KEY)"
+      }
+    }
+  }
+}
+```
+
+Tip: allow the corresponding tool (e.g. `mcp_context7_get-library-doc`) in `permissions.allowed_tools` if you want it to run without prompts.
+
 ### Ignoring Files
 
 Crush respects `.gitignore` files by default, but you can also create a

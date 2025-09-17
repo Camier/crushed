@@ -273,5 +273,14 @@
       "view",
       "write"
     ]
+  },
+  "mcp": {
+    "context7": {
+      "type": "http",
+      "url": "https://api.context7.dev/mcp/",
+      "headers": {
+        "Authorization": "$(echo Bearer $CONTEXT7_API_KEY)"
+      }
+    }
   }
 }
