@@ -6,7 +6,7 @@ set -euo pipefail
 
 MODEL_ID="${MODEL_ID:-meta-llama/Meta-Llama-3-8B-Instruct}"
 PORT="${PORT:-8000}"
-CONTAINER_NAME="${CONTAINER_NAME:-vllm-llama3-8b}" 
+CONTAINER_NAME="${CONTAINER_NAME:-vllm-llama3-8b}"
 
 # Optional: pass your HF token for gated models
 # export HF_TOKEN=...  # or set as env before running this script
