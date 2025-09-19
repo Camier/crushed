@@ -363,6 +363,15 @@
       "headers": {
         "Authorization": "$(echo Bearer $CONTEXT7_API_KEY)"
       }
+    },
+    "github-stdio": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@cyanheads/git-mcp-server"],
+      "env": {
+        "GITHUB_TOKEN": "$(echo $GITHUB_TOKEN)",
+        "MCP_LOG_LEVEL": "info"
+      }
     }
   }
 }
