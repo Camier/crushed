@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODEL_PATH="${MODEL_PATH:-$HOME/.local/share/llama.cpp/models/dolphin-2.9.3-mistral-7B-32k-Q4_K_M.gguf}"
+DEFAULT_MODEL_ROOT="${CRUSH_LOCAL_MODELS:-$HOME/.local/share/crush/models}"
+MODEL_FILE="dolphin-2.9.3-mistral-7B-32k-Q4_K_M.gguf"
+MODEL_PATH="${MODEL_PATH:-${DEFAULT_MODEL_ROOT}/llama.cpp/models/${MODEL_FILE}}"
 PORT="${PORT:-8082}"
 THREADS="${THREADS:-$(nproc)}"
 CONTAINER_NAME="${CONTAINER_NAME:-llama7b-dolphin}"
@@ -9,7 +11,8 @@ CONTAINER_NAME="${CONTAINER_NAME:-llama7b-dolphin}"
 if [ ! -f "$MODEL_PATH" ]; then
   echo "Model not found: $MODEL_PATH" >&2
   echo "Download it first, e.g.:" >&2
-  echo "  curl -L -C - -o $HOME/.local/share/llama.cpp/models/dolphin-2.9.3-mistral-7B-32k-Q4_K_M.gguf \\" 
+  echo "  mkdir -p \"$(dirname "$MODEL_PATH")\"" >&2
+  echo "  curl -L -C - -o \"$MODEL_PATH\" \\" >&2
   echo "    'https://huggingface.co/bartowski/dolphin-2.9.3-mistral-7B-32k-GGUF/resolve/main/dolphin-2.9.3-mistral-7B-32k-Q4_K_M.gguf?download=true'" >&2
   exit 1
 fi

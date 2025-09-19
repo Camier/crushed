@@ -487,6 +487,8 @@ OpenRouter (Global):
 
 Tip: you can switch the preferred model quickly with `crush models use -t large <provider> <model>`.
 
+Run `crush models status` to confirm your providers are reachable; it hits each health endpoint (respecting any `startup_health_path` or custom headers) so you can spot issues before starting a session.
+
 If your OpenAI-compatible backend does not implement streaming (SSE), set `disable_stream: true` on the provider. Crush will automatically fall back to a non‑streaming interaction for that provider.
 
 ##### vLLM (Local GPU, OpenAI-compatible)
@@ -500,12 +502,12 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install vllm==0.5.4.post1
 python -m vllm.entrypoints.openai.api_server \
-  --model meta-llama/Meta-Llama-3-8B-Instruct \
-  --served-model-name llama3-8b \
-  --model deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct \
+  --model "$HOME/.local/share/crush/models/vllm/nous-hermes-7b" \
+  --served-model-name nous-hermes-7b \
+  --model "$HOME/.local/share/crush/models/vllm/openorca-7b" \
+  --served-model-name openorca-7b \
+  --model "$HOME/.local/share/crush/models/vllm/deepseek-coder" \
   --served-model-name deepseek-coder \
-  --model mistralai/Mixtral-8x7B-Instruct-v0.1 \
-  --served-model-name mixtral-8x7b \
   --host 0.0.0.0 --port 8000 \
   --dtype float16 \
   --gpu-memory-utilization 0.9 \
@@ -515,12 +517,22 @@ python -m vllm.entrypoints.openai.api_server \
 
 - Optional: set `HF_TOKEN` if the model is gated.
 - To persist downloads, export `HF_HOME=$HOME/.cache/huggingface` before launching.
-- Prefetch the model weights once (recommended) so the server starts instantly:
+- Prefetch the model weights once (recommended) so the server starts instantly. The preset pulls:
+  - **Nous Hermes 2 Mistral 7B** – permissive fine-tune with minimal guardrails for uncensored chats.
+  - **OpenOrca Mistral 7B** – open-domain Q&A tuned on uncensored Orca-style data.
+  - **DeepSeek Coder V2 Lite** – fast uncensored coding/modeling assistant.
 
 ```
 pip install huggingface_hub
 python scripts/prefetch-vllm-models.py
 ```
+
+The script creates aliases like `~/.local/share/crush/models/vllm/llama3-8b`
+(override with `CRUSH_LOCAL_MODELS`) so you can point vLLM at the cached
+snapshot directly. On Windows, use the absolute paths printed by the script when
+updating the command below. Need more space? Point `CRUSH_LOCAL_MODELS` to a
+ fast volume (e.g. `export CRUSH_LOCAL_MODELS=/run/media/miko/AYA/ai-models`)
+and add it to your shell profile so it persists across reboots.
 
 Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use the preset included):
 
@@ -532,22 +544,22 @@ Then add a provider (OpenAI-compatible) to your project `.crush.json` (or use th
       "type": "openai",
       "name": "vLLM (local)",
       "base_url": "http://127.0.0.1:8000/v1/",
-      "startup_command": "python -m vllm.entrypoints.openai.api_server --model meta-llama/Meta-Llama-3-8B-Instruct --served-model-name llama3-8b --model deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct --served-model-name deepseek-coder --model mistralai/Mixtral-8x7B-Instruct-v0.1 --served-model-name mixtral-8x7b --host 0.0.0.0 --port 8000 --dtype float16 --gpu-memory-utilization 0.9 --max-model-len 32768 --num-scheduler-steps 10",
+      "startup_command": "python -m vllm.entrypoints.openai.api_server --model \"$HOME/.local/share/crush/models/vllm/nous-hermes-7b\" --served-model-name nous-hermes-7b --model \"$HOME/.local/share/crush/models/vllm/openorca-7b\" --served-model-name openorca-7b --model \"$HOME/.local/share/crush/models/vllm/deepseek-coder\" --served-model-name deepseek-coder --host 0.0.0.0 --port 8000 --dtype float16 --gpu-memory-utilization 0.9 --max-model-len 32768 --num-scheduler-steps 10",
       "startup_timeout_seconds": 120,
       "models": [
-        { "id": "llama3-8b", "name": "Llama 3 8B Instruct", "context_window": 32768, "default_max_tokens": 4096 },
-        { "id": "deepseek-coder", "name": "DeepSeek Coder V2 Lite", "context_window": 32768, "default_max_tokens": 4096 },
-        { "id": "mixtral-8x7b", "name": "Mixtral 8x7B", "context_window": 32768, "default_max_tokens": 4096 }
+        { "id": "nous-hermes-7b", "name": "Nous Hermes 2 Mistral 7B", "context_window": 32768, "default_max_tokens": 4096 },
+        { "id": "openorca-7b", "name": "OpenOrca Mistral 7B", "context_window": 32768, "default_max_tokens": 4096 },
+        { "id": "deepseek-coder", "name": "DeepSeek Coder V2 Lite", "context_window": 32768, "default_max_tokens": 4096 }
       ]
     }
   }
 }
 ```
 
-Tip: Switch quickly with `crush models use -t large vllm meta-llama/Meta-Llama-3-8B-Instruct`.
+Tip: Switch quickly with `crush models use -t large vllm nous-hermes-7b` or `openorca-7b` depending on the vibe you need.
 
 The same vLLM process now hosts multiple models—Crush simply sets the `model`
-field (e.g. `llama3-8b`, `deepseek-coder`, `mixtral-8x7b`) when making API
+field (e.g. `nous-hermes-7b`, `openorca-7b`, `deepseek-coder`) when making API
 calls.
 
 Environment variable `CRUSH_SKIP_PROVIDER_STARTUP=1` disables automatic startup checks if you prefer to manage services yourself.
