@@ -5,6 +5,8 @@ version: "3"
 env:
   CGO_ENABLED: 0
   GOEXPERIMENT: greenteagc
+  GOSUMDB: sum.golang.org
+  GOTOOLCHAIN: go1.25.0
 
 tasks:
   lint:install:
