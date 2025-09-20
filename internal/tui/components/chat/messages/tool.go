@@ -64,6 +64,8 @@ type toolCallCmp struct {
 	spinning bool       // Whether to show loading animation
 	anim     util.Model // Animation component for pending states
 
+	expanded bool
+
 	nestedToolCalls []ToolCallCmp // Nested tool calls for hierarchical display
 }
 
@@ -165,6 +167,11 @@ func (m *toolCallCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 	case tea.KeyPressMsg:
+		keyEvent := msg.Key()
+		if (keyEvent.Code == tea.KeyEnter || keyEvent.Code == tea.KeySpace) && m.focused && !m.spinning && !m.cancelled && m.result.ToolCallID != "" && !m.isNested {
+			m.expanded = !m.expanded
+			return m, nil
+		}
 		if key.Matches(msg, CopyKey) {
 			return m, m.copyTool()
 		}
@@ -183,10 +190,17 @@ func (m *toolCallCmp) View() string {
 
 	r := registry.lookup(m.call.Name)
 
+	content := r.Render(m)
 	if m.isNested {
-		return box.Render(r.Render(m))
+		return box.Render(content)
 	}
-	return box.Render(r.Render(m))
+	if !m.expanded && !m.cancelled {
+		content = m.collapsedView(content)
+	} else if m.expanded && !m.cancelled {
+		hint := styles.CurrentTheme().S().Muted.Render("… press enter to collapse")
+		content = content + "\n" + hint
+	}
+	return box.Render(content)
 }
 
 // State management methods
@@ -666,6 +680,7 @@ func (m *toolCallCmp) ParentMessageID() string {
 func (m *toolCallCmp) SetToolResult(result message.ToolResult) {
 	m.result = result
 	m.spinning = false
+	m.expanded = false
 }
 
 // GetToolCall returns the current tool call data
@@ -698,33 +713,54 @@ func (m *toolCallCmp) SetIsNested(isNested bool) {
 
 // Rendering methods
 
+func (m *toolCallCmp) collapsedView(full string) string {
+	const maxLines = 8
+	lines := strings.Split(full, "\n")
+	if len(lines) <= maxLines {
+		return full
+	}
+
+	preview := strings.Join(lines[:maxLines], "\n")
+	hint := styles.CurrentTheme().S().Muted.Render("… press enter to expand")
+	return preview + "\n" + hint
+}
+
+func (m *toolCallCmp) pendingTail() string {
+	tail := strings.TrimSpace(m.call.Input)
+	if tail == "" {
+		return ""
+	}
+
+	lines := strings.Split(tail, "\n")
+	const maxLines = 4
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+		lines[0] = "…" + strings.TrimLeft(lines[0], "…")
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // renderPending displays the tool name with a loading animation for pending tool calls
 func (m *toolCallCmp) renderPending() string {
-    t := styles.CurrentTheme()
-    icon := t.S().Base.Foreground(t.GreenDark).Render(styles.ToolPending)
-    if m.isNested {
-        tool := t.S().Base.Foreground(t.FgHalfMuted).Render(prettifyToolName(m.call.Name))
-        // Show a short tail of any incremental output (appended into call input)
-        tail := strings.TrimSpace(m.call.Input)
-        if tail != "" {
-            if len(tail) > 160 {
-                tail = "…" + tail[len(tail)-160:]
-            }
-            out := t.S().Muted.Render(m.fit(tail, m.textWidth()))
-            return fmt.Sprintf("%s %s %s\n%s", icon, tool, m.anim.View(), out)
-        }
-        return fmt.Sprintf("%s %s %s", icon, tool, m.anim.View())
-    }
-    tool := t.S().Base.Foreground(t.Blue).Render(prettifyToolName(m.call.Name))
-    tail := strings.TrimSpace(m.call.Input)
-    if tail != "" {
-        if len(tail) > 200 {
-            tail = "…" + tail[len(tail)-200:]
-        }
-        out := t.S().Muted.Render(m.fit(tail, m.textWidth()))
-        return fmt.Sprintf("%s %s %s\n%s", icon, tool, m.anim.View(), out)
-    }
-    return fmt.Sprintf("%s %s %s", icon, tool, m.anim.View())
+	t := styles.CurrentTheme()
+	icon := t.S().Base.Foreground(t.GreenDark).Render(styles.ToolPending)
+	if m.isNested {
+		tool := t.S().Base.Foreground(t.FgHalfMuted).Render(prettifyToolName(m.call.Name))
+		tail := m.pendingTail()
+		if tail != "" {
+			out := t.S().Muted.Render(m.fit(tail, m.textWidth()))
+			return fmt.Sprintf("%s %s %s\n%s", icon, tool, m.anim.View(), out)
+		}
+		return fmt.Sprintf("%s %s %s", icon, tool, m.anim.View())
+	}
+	tool := t.S().Base.Foreground(t.Blue).Render(prettifyToolName(m.call.Name))
+	tail := m.pendingTail()
+	if tail != "" {
+		out := t.S().Muted.Render(m.fit(tail, m.textWidth()))
+		return fmt.Sprintf("%s %s %s\n%s", icon, tool, m.anim.View(), out)
+	}
+	return fmt.Sprintf("%s %s %s", icon, tool, m.anim.View())
 }
 
 // style returns the lipgloss style for the tool call component.

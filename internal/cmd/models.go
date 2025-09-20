@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/providerstatus"
 	"github.com/spf13/cobra"
 )
 
@@ -184,20 +184,22 @@ var modelsStatusCmd = &cobra.Command{
 			if name == "" {
 				name = row.prov.Name
 			}
-			healthURL, err := buildHealthURL(row.prov)
+			healthURL, err := providerstatus.BuildHealthURL(row.prov)
 			if err != nil {
 				fmt.Fprintf(os.Stdout, "- %s: skipped (%s)\n", name, err.Error())
 				continue
 			}
-			ready, detail := providerHealthCheck(ctx, row.prov, healthURL)
+			ready, detail, checkErr := providerstatus.CheckHealthURL(ctx, nil, row.prov, healthURL)
+			if checkErr != nil {
+				fmt.Fprintf(os.Stdout, "- %s: unreachable (%s)\n", name, checkErr.Error())
+				continue
+			}
 			if ready {
 				fmt.Fprintf(os.Stdout, "- %s: ready\n", name)
+			} else if detail != "" {
+				fmt.Fprintf(os.Stdout, "- %s: unreachable (%s)\n", name, detail)
 			} else {
-				if detail != "" {
-					fmt.Fprintf(os.Stdout, "- %s: unreachable (%s)\n", name, detail)
-				} else {
-					fmt.Fprintf(os.Stdout, "- %s: unreachable\n", name)
-				}
+				fmt.Fprintf(os.Stdout, "- %s: unreachable\n", name)
 			}
 		}
 		return nil
@@ -231,12 +233,12 @@ func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 		return nil
 	}
 
-	healthURL, err := buildHealthURL(prov)
+	healthURL, err := providerstatus.BuildHealthURL(prov)
 	if err != nil {
 		return err
 	}
 
-	if ok, _ := providerHealthCheck(ctx, prov, healthURL); ok {
+	if ok, _, checkErr := providerstatus.CheckHealthURL(ctx, nil, prov, healthURL); checkErr == nil && ok {
 		return nil
 	}
 
@@ -246,7 +248,14 @@ func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 	}
 	fmt.Fprintf(os.Stdout, "Provider %s not reachable, executing startup command...\n", providerName)
 
-	cmd := buildShellCommand(prov.StartupCommand)
+	timeoutSeconds := prov.StartupTimeoutSeconds
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 60
+	}
+	deadlineCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+
+	cmd := buildShellCommand(deadlineCtx, prov.StartupCommand)
 	cmd.Dir = cwd
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -259,13 +268,6 @@ func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 	go func() {
 		done <- cmd.Wait()
 	}()
-
-	timeoutSeconds := prov.StartupTimeoutSeconds
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 60
-	}
-	deadlineCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
-	defer cancel()
 
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -283,7 +285,7 @@ func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 			}
 			// Command exited successfully; continue polling in case it spawned a background process.
 		case <-ticker.C:
-			if ok, _ := providerHealthCheck(ctx, prov, healthURL); ok {
+			if ok, _, checkErr := providerstatus.CheckHealthURL(ctx, nil, prov, healthURL); checkErr == nil && ok {
 				fmt.Fprintln(os.Stdout, "Provider is ready.")
 				return nil
 			}
@@ -291,66 +293,9 @@ func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 	}
 }
 
-func buildShellCommand(command string) *exec.Cmd {
+func buildShellCommand(ctx context.Context, command string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
-		return exec.Command("cmd", "/c", command)
+		return exec.CommandContext(ctx, "cmd", "/c", command)
 	}
-	return exec.Command("bash", "-lc", command)
-}
-
-func buildHealthURL(prov config.ProviderConfig) (string, error) {
-	baseURL := strings.TrimSpace(prov.BaseURL)
-	if baseURL == "" {
-		return "", fmt.Errorf("provider base_url not configured")
-	}
-	baseURL = strings.TrimRight(baseURL, "/")
-
-	healthPath := strings.TrimSpace(prov.StartupHealthPath)
-	if healthPath == "" {
-		healthPath = "/models"
-	}
-	if !strings.HasPrefix(healthPath, "/") {
-		healthPath = "/" + healthPath
-	}
-
-	return baseURL + healthPath, nil
-}
-
-func providerHealthCheck(ctx context.Context, prov config.ProviderConfig, healthURL string) (bool, string) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
-	if err != nil {
-		return false, err.Error()
-	}
-	applyHealthHeaders(req, prov)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return false, err.Error()
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		return true, ""
-	}
-	return false, fmt.Sprintf("status %d", resp.StatusCode)
-}
-
-func applyHealthHeaders(req *http.Request, prov config.ProviderConfig) {
-	key := strings.TrimSpace(prov.APIKey)
-	if key != "" {
-		switch prov.Type {
-		case catwalk.TypeOpenAI, "":
-			req.Header.Set("Authorization", "Bearer "+key)
-		case catwalk.TypeAnthropic:
-			req.Header.Set("x-api-key", key)
-		case catwalk.TypeAzure:
-			req.Header.Set("api-key", key)
-		}
-	}
-	for k, v := range prov.ExtraHeaders {
-		req.Header.Set(k, v)
-	}
+	return exec.CommandContext(ctx, "bash", "-lc", command)
 }

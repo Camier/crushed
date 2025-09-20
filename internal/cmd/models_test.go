@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/providerstatus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +42,7 @@ func TestBuildHealthURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := buildHealthURL(tc.prov)
+			got, err := providerstatus.BuildHealthURL(tc.prov)
 			require.NoError(t, err)
 			require.Equal(t, tc.expect, got)
 		})
@@ -51,55 +52,8 @@ func TestBuildHealthURL(t *testing.T) {
 func TestBuildHealthURLMissingBase(t *testing.T) {
 	t.Parallel()
 
-	_, err := buildHealthURL(config.ProviderConfig{})
+	_, err := providerstatus.BuildHealthURL(config.ProviderConfig{})
 	require.Error(t, err)
-}
-
-func TestApplyHealthHeaders(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		prov   config.ProviderConfig
-		header string
-		value  string
-	}{
-		{
-			name:   "openai",
-			prov:   config.ProviderConfig{Type: catwalk.TypeOpenAI, APIKey: "secret"},
-			header: "Authorization",
-			value:  "Bearer secret",
-		},
-		{
-			name:   "anthropic",
-			prov:   config.ProviderConfig{Type: catwalk.TypeAnthropic, APIKey: "anthro"},
-			header: "x-api-key",
-			value:  "anthro",
-		},
-		{
-			name:   "azure",
-			prov:   config.ProviderConfig{Type: catwalk.TypeAzure, APIKey: "azkey"},
-			header: "api-key",
-			value:  "azkey",
-		},
-	}
-
-	for _, tc := range tests {
-		testCase := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
-			require.NoError(t, err)
-
-			testCase.prov.ExtraHeaders = map[string]string{"X-Test": "ok"}
-
-			applyHealthHeaders(req, testCase.prov)
-
-			require.Equal(t, testCase.value, req.Header.Get(testCase.header))
-			require.Equal(t, "ok", req.Header.Get("X-Test"))
-		})
-	}
 }
 
 func TestProviderHealthCheck(t *testing.T) {
@@ -118,7 +72,8 @@ func TestProviderHealthCheck(t *testing.T) {
 		ExtraHeaders: map[string]string{"X-Extra": "yay"},
 	}
 
-	ready, detail := providerHealthCheck(context.Background(), prov, srv.URL)
+	ready, detail, err := providerstatus.CheckHealthURL(context.Background(), nil, prov, srv.URL)
+	require.NoError(t, err)
 	require.True(t, ready)
 	require.Empty(t, detail)
 
@@ -135,7 +90,8 @@ func TestProviderHealthCheckFailure(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	ready, detail := providerHealthCheck(context.Background(), config.ProviderConfig{}, srv.URL)
+	ready, detail, err := providerstatus.CheckHealthURL(context.Background(), nil, config.ProviderConfig{}, srv.URL)
+	require.NoError(t, err)
 	require.False(t, ready)
 	require.Equal(t, "status 502", detail)
 }
@@ -146,7 +102,8 @@ func TestProviderHealthCheckUnreachable(t *testing.T) {
 	srv := httptest.NewServer(http.NewServeMux())
 	srv.Close()
 
-	ready, detail := providerHealthCheck(context.Background(), config.ProviderConfig{}, srv.URL)
+	ready, detail, err := providerstatus.CheckHealthURL(context.Background(), nil, config.ProviderConfig{}, srv.URL)
+	require.NoError(t, err)
 	require.False(t, ready)
 	require.NotEmpty(t, detail)
 }

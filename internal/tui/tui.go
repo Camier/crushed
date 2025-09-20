@@ -36,6 +36,11 @@ import (
 
 var lastMouseEvent time.Time
 
+const (
+	statusFullHelpHeight  = 5
+	statusCollapsedHeight = 4
+)
+
 func MouseEventFilter(m tea.Model, msg tea.Msg) tea.Msg {
 	switch msg.(type) {
 	case tea.MouseWheelMsg, tea.MouseMotionMsg:
@@ -232,6 +237,22 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return a, itemCmd
+	case pubsub.Event[app.ProviderStatus]:
+		item, ok := a.pages[a.currentPage]
+		if !ok {
+			return a, nil
+		}
+		updated, itemCmd := item.Update(msg)
+		if model, ok := updated.(util.Model); ok {
+			a.pages[a.currentPage] = model
+		}
+		return a, itemCmd
+	case pubsub.Event[app.LSPEvent]:
+		s, statusCmd := a.status.Update(msg)
+		if cmp, ok := s.(status.StatusCmp); ok {
+			a.status = cmp
+		}
+		return a, statusCmd
 	case pubsub.Event[permission.PermissionRequest]:
 		return a, util.CmdHandler(dialogs.OpenDialogMsg{
 			Model: permissions.NewPermissionDialogCmp(msg.Payload, &permissions.Options{
@@ -368,11 +389,10 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *appModel) handleWindowResize(width, height int) tea.Cmd {
 	var cmds []tea.Cmd
 
-	// TODO: clean up these magic numbers.
 	if a.showingFullHelp {
-		height -= 5
+		height -= statusFullHelpHeight
 	} else {
-		height -= 2
+		height -= statusCollapsedHeight
 	}
 
 	a.width, a.height = width, height

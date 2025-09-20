@@ -15,18 +15,18 @@ type ToolInfo struct {
 type toolResponseType string
 
 type (
-    sessionIDContextKey string
-    messageIDContextKey string
-    progressCallbackKey string
+	sessionIDContextKey string
+	messageIDContextKey string
+	progressCallbackKey string
 )
 
 const (
 	ToolResponseTypeText  toolResponseType = "text"
 	ToolResponseTypeImage toolResponseType = "image"
 
-    SessionIDContextKey sessionIDContextKey = "session_id"
-    MessageIDContextKey messageIDContextKey = "message_id"
-    ProgressCallbackContextKey progressCallbackKey = "progress_callback"
+	SessionIDContextKey        sessionIDContextKey = "session_id"
+	MessageIDContextKey        messageIDContextKey = "message_id"
+	ProgressCallbackContextKey progressCallbackKey = "progress_callback"
 )
 
 type ToolResponse struct {
@@ -89,12 +89,12 @@ func GetContextValues(ctx context.Context) (string, string) {
 // GetProgressCallback returns a streaming progress callback if one was provided in the context.
 // Tools may invoke this to emit incremental output while running.
 func GetProgressCallback(ctx context.Context) (func(string), bool) {
-    v := ctx.Value(ProgressCallbackContextKey)
-    if v == nil {
-        return nil, false
-    }
-    if cb, ok := v.(func(string)); ok {
-        return cb, true
-    }
-    return nil, false
+	v := ctx.Value(ProgressCallbackContextKey)
+	if v == nil {
+		return nil, false
+	}
+	if cb, ok := v.(func(string)); ok {
+		return cb, true
+	}
+	return nil, false
 }

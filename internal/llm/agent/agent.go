@@ -594,72 +594,72 @@ func (a *agent) streamAndHandleEvents(ctx context.Context, sessionID string, msg
 				continue
 			}
 
-            // Run tool in goroutine to allow cancellation and accept streaming deltas
-            type toolExecResult struct {
-                response tools.ToolResponse
-                err      error
-            }
-            resultChan := make(chan toolExecResult, 1)
-            progressCh := make(chan string, 128)
+			// Run tool in goroutine to allow cancellation and accept streaming deltas
+			type toolExecResult struct {
+				response tools.ToolResponse
+				err      error
+			}
+			resultChan := make(chan toolExecResult, 1)
+			progressCh := make(chan string, 128)
 
-            // Inject progress callback into context for streaming tools
-            progressCB := func(delta string) {
-                select {
-                case progressCh <- delta:
-                default:
-                    // drop if congested; we will catch up with later chunks
-                }
-            }
-            ctxWithProgress := context.WithValue(ctx, tools.ProgressCallbackContextKey, progressCB)
+			// Inject progress callback into context for streaming tools
+			progressCB := func(delta string) {
+				select {
+				case progressCh <- delta:
+				default:
+					// drop if congested; we will catch up with later chunks
+				}
+			}
+			ctxWithProgress := context.WithValue(ctx, tools.ProgressCallbackContextKey, progressCB)
 
-            go func() {
-                response, err := tool.Run(ctxWithProgress, tools.ToolCall{
-                    ID:    toolCall.ID,
-                    Name:  toolCall.Name,
-                    Input: toolCall.Input,
-                })
-                resultChan <- toolExecResult{response: response, err: err}
-            }()
+			go func() {
+				response, err := tool.Run(ctxWithProgress, tools.ToolCall{
+					ID:    toolCall.ID,
+					Name:  toolCall.Name,
+					Input: toolCall.Input,
+				})
+				resultChan <- toolExecResult{response: response, err: err}
+			}()
 
-            var toolResponse tools.ToolResponse
-            var toolErr error
+			var toolResponse tools.ToolResponse
+			var toolErr error
 
-            for {
-                select {
-                case <-ctx.Done():
-                    a.finishMessage(context.Background(), &assistantMsg, message.FinishReasonCanceled, "Request cancelled", "")
-                    // Mark remaining tool calls as cancelled
-                    for j := i; j < len(toolCalls); j++ {
-                        toolResults[j] = message.ToolResult{
-                            ToolCallID: toolCalls[j].ID,
-                            Content:    "Tool execution canceled by user",
-                            IsError:    true,
-                        }
-                    }
-                    goto out
-                case delta := <-progressCh:
-                    // Append incremental output to the tool call input for live preview
-                    assistantMsg.AppendToolCallInput(toolCall.ID, delta)
-                    _ = a.messages.Update(ctx, assistantMsg)
-                case result := <-resultChan:
-                    toolResponse = result.response
-                    toolErr = result.err
-                    // drain remaining progress without blocking
-                    for {
-                        select {
-                        case delta := <-progressCh:
-                            assistantMsg.AppendToolCallInput(toolCall.ID, delta)
-                            _ = a.messages.Update(ctx, assistantMsg)
-                        default:
-                            goto doneProgress
-                        }
-                    }
-                doneProgress:
-                    // done with this tool
-                    goto haveResult
-                }
-            }
-        haveResult:
+			for {
+				select {
+				case <-ctx.Done():
+					a.finishMessage(context.Background(), &assistantMsg, message.FinishReasonCanceled, "Request cancelled", "")
+					// Mark remaining tool calls as cancelled
+					for j := i; j < len(toolCalls); j++ {
+						toolResults[j] = message.ToolResult{
+							ToolCallID: toolCalls[j].ID,
+							Content:    "Tool execution canceled by user",
+							IsError:    true,
+						}
+					}
+					goto out
+				case delta := <-progressCh:
+					// Append incremental output to the tool call input for live preview
+					assistantMsg.AppendToolCallInput(toolCall.ID, delta)
+					_ = a.messages.Update(ctx, assistantMsg)
+				case result := <-resultChan:
+					toolResponse = result.response
+					toolErr = result.err
+					// drain remaining progress without blocking
+					for {
+						select {
+						case delta := <-progressCh:
+							assistantMsg.AppendToolCallInput(toolCall.ID, delta)
+							_ = a.messages.Update(ctx, assistantMsg)
+						default:
+							goto doneProgress
+						}
+					}
+				doneProgress:
+					// done with this tool
+					goto haveResult
+				}
+			}
+		haveResult:
 
 			if toolErr != nil {
 				slog.Error("Tool execution error", "toolCall", toolCall.ID, "error", toolErr)

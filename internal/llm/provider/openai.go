@@ -178,7 +178,7 @@ func (o *openaiClient) convertMessages(messages []message.Message) (openaiMessag
 		}
 	}
 
-	return
+	return openaiMessages
 }
 
 func (o *openaiClient) convertTools(tools []tools.BaseTool) []openai.ChatCompletionToolParam {
@@ -522,30 +522,30 @@ func (o *openaiClient) stream(ctx context.Context, messages []message.Message, t
 }
 
 func shouldUseNonStreamingFallback(err error) bool {
-    if err == nil {
-        return false
-    }
-    if errors.Is(err, io.ErrUnexpectedEOF) {
-        return true
-    }
-    if strings.Contains(err.Error(), "unexpected end of JSON input") {
-        return true
-    }
-    var apiErr *openai.Error
-    if errors.As(err, &apiErr) {
-        msg := strings.ToLower(apiErr.Message)
-        if strings.Contains(msg, "unexpected end of json input") {
-            return true
-        }
-        // Many OpenAI-compatible local servers don't support streaming + tools together.
-        // Fall back to non-streaming in this case.
-        if strings.Contains(msg, "cannot use tools with stream") {
-            return true
-        }
-        // Be conservative otherwise.
-        return false
-    }
-    return false
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	if strings.Contains(err.Error(), "unexpected end of JSON input") {
+		return true
+	}
+	var apiErr *openai.Error
+	if errors.As(err, &apiErr) {
+		msg := strings.ToLower(apiErr.Message)
+		if strings.Contains(msg, "unexpected end of json input") {
+			return true
+		}
+		// Many OpenAI-compatible local servers don't support streaming + tools together.
+		// Fall back to non-streaming in this case.
+		if strings.Contains(msg, "cannot use tools with stream") {
+			return true
+		}
+		// Be conservative otherwise.
+		return false
+	}
+	return false
 }
 
 func (o *openaiClient) streamWithoutStreaming(ctx context.Context, messages []message.Message, tools []tools.BaseTool) <-chan ProviderEvent {

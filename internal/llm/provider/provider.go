@@ -99,7 +99,7 @@ func (p *baseProvider[C]) cleanMessages(messages []message.Message) (cleaned []m
 		}
 		cleaned = append(cleaned, msg)
 	}
-	return
+	return cleaned
 }
 
 func (p *baseProvider[C]) SendMessages(ctx context.Context, messages []message.Message, tools []tools.BaseTool) (*ProviderResponse, error) {
@@ -108,26 +108,26 @@ func (p *baseProvider[C]) SendMessages(ctx context.Context, messages []message.M
 }
 
 func (p *baseProvider[C]) StreamResponse(ctx context.Context, messages []message.Message, tools []tools.BaseTool) <-chan ProviderEvent {
-    messages = p.cleanMessages(messages)
-    if p.options.disableStream {
-        // Generic non-streaming fallback for providers without SSE support
-        eventChan := make(chan ProviderEvent, 2)
-        go func() {
-            resp, err := p.client.send(ctx, messages, tools)
-            if err != nil {
-                eventChan <- ProviderEvent{Type: EventError, Error: err}
-                close(eventChan)
-                return
-            }
-            if resp.Content != "" {
-                eventChan <- ProviderEvent{Type: EventContentDelta, Content: resp.Content}
-            }
-            eventChan <- ProviderEvent{Type: EventComplete, Response: resp}
-            close(eventChan)
-        }()
-        return eventChan
-    }
-    return p.client.stream(ctx, messages, tools)
+	messages = p.cleanMessages(messages)
+	if p.options.disableStream {
+		// Generic non-streaming fallback for providers without SSE support
+		eventChan := make(chan ProviderEvent, 2)
+		go func() {
+			resp, err := p.client.send(ctx, messages, tools)
+			if err != nil {
+				eventChan <- ProviderEvent{Type: EventError, Error: err}
+				close(eventChan)
+				return
+			}
+			if resp.Content != "" {
+				eventChan <- ProviderEvent{Type: EventContentDelta, Content: resp.Content}
+			}
+			eventChan <- ProviderEvent{Type: EventComplete, Response: resp}
+			close(eventChan)
+		}()
+		return eventChan
+	}
+	return p.client.stream(ctx, messages, tools)
 }
 
 func (p *baseProvider[C]) Model() catwalk.Model {

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/crush/internal/app"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/lsp"
@@ -22,14 +23,16 @@ type Header interface {
 	SetSession(session session.Session) tea.Cmd
 	SetWidth(width int) tea.Cmd
 	SetDetailsOpen(open bool)
+	SetProviderStatus(status app.ProviderStatus)
 	ShowingDetails() bool
 }
 
 type header struct {
-	width       int
-	session     session.Session
-	lspClients  map[string]*lsp.Client
-	detailsOpen bool
+	width          int
+	session        session.Session
+	lspClients     map[string]*lsp.Client
+	detailsOpen    bool
+	providerStatus app.ProviderStatus
 }
 
 func New(lspClients map[string]*lsp.Client) Header {
@@ -103,6 +106,10 @@ func (h *header) details(availWidth int) string {
 
 	var parts []string
 
+	if providerSegment := h.providerSummary(availWidth); providerSegment != "" {
+		parts = append(parts, providerSegment)
+	}
+
 	errorCount := 0
 	for _, l := range h.lspClients {
 		for _, diagnostics := range l.GetDiagnostics() {
@@ -144,8 +151,58 @@ func (h *header) details(availWidth int) string {
 	return cwd + metadata
 }
 
+func (h *header) providerSummary(availWidth int) string {
+	status := h.providerStatus
+	if status.ProviderID == "" && status.ProviderName == "" && status.ModelID == "" {
+		return ""
+	}
+
+	t := styles.CurrentTheme()
+	name := status.ProviderName
+	if name == "" {
+		name = status.ProviderID
+	}
+
+	model := status.ModelID
+	if idx := strings.LastIndex(model, "/"); idx >= 0 {
+		model = model[idx+1:]
+	}
+	if model != "" {
+		name = fmt.Sprintf("%s/%s", name, model)
+	}
+
+	icon := styles.ToolSuccess
+	style := t.S().Success
+	if !status.Ready {
+		if status.Detail != "" {
+			icon = styles.WarningIcon
+			style = t.S().Warning
+		} else {
+			icon = styles.ErrorIcon
+			style = t.S().Error
+		}
+	}
+
+	summary := fmt.Sprintf("%s %s", icon, name)
+	if !status.StreamEnabled {
+		summary += " · stream off"
+	}
+	if !status.Ready && status.Detail != "" {
+		summary += " · " + status.Detail
+	}
+
+	if availWidth > 0 {
+		summary = ansi.Truncate(summary, availWidth, "…")
+	}
+	return style.Render(summary)
+}
+
 func (h *header) SetDetailsOpen(open bool) {
 	h.detailsOpen = open
+}
+
+func (h *header) SetProviderStatus(status app.ProviderStatus) {
+	h.providerStatus = status
 }
 
 // SetSession implements Header.

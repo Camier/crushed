@@ -118,10 +118,13 @@ type chatPage struct {
 }
 
 func New(app *app.App) ChatPage {
+	hdr := header.New(app.LSPClients)
+	hdr.SetProviderStatus(app.ProviderStatus())
+
 	return &chatPage{
 		app:         app,
 		keyMap:      DefaultKeyMap(),
-		header:      header.New(app.LSPClients),
+		header:      hdr,
 		sidebar:     sidebar.New(app.History, app.LSPClients, false),
 		chat:        chat.New(app),
 		editor:      editor.New(app),
@@ -166,6 +169,9 @@ func (p *chatPage) Init() tea.Cmd {
 func (p *chatPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
+	case pubsub.Event[app.ProviderStatus]:
+		p.header.SetProviderStatus(msg.Payload)
+		return p, nil
 	case tea.KeyboardEnhancementsMsg:
 		p.keyboardEnhancements = msg
 		return p, nil

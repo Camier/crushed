@@ -270,9 +270,37 @@ func (p *permissionDialogCmp) renderButtons() string {
 	return baseStyle.AlignHorizontal(lipgloss.Right).Width(p.width - 4).Render(content)
 }
 
+func (p *permissionDialogCmp) summaryLine() string {
+	if desc := strings.TrimSpace(p.permission.Description); desc != "" {
+		return desc
+	}
+
+	label := p.permission.ToolName
+	if p.permission.Action != "" {
+		label = fmt.Sprintf("%s · %s", label, p.permission.Action)
+	}
+	if p.permission.Path != "" {
+		label = fmt.Sprintf("%s (%s)", label, fsext.PrettyPath(p.permission.Path))
+	}
+	return label
+}
+
 func (p *permissionDialogCmp) renderHeader() string {
 	t := styles.CurrentTheme()
 	baseStyle := t.S().Base
+
+	headerParts := []string{}
+
+	if summary := p.summaryLine(); summary != "" {
+		text := t.S().Text.Width(p.width).Render(ansi.Truncate(summary, p.width, "…"))
+		shortcuts := t.S().Muted.Width(p.width).Render(ansi.Truncate("Shortcuts: a allow  •  s allow session  •  d deny", p.width, "…"))
+		headerParts = append(headerParts,
+			text,
+			baseStyle.Render(strings.Repeat(" ", p.width)),
+			shortcuts,
+			baseStyle.Render(strings.Repeat(" ", p.width)),
+		)
+	}
 
 	toolKey := t.S().Muted.Render("Tool")
 	toolValue := t.S().Text.
@@ -284,7 +312,7 @@ func (p *permissionDialogCmp) renderHeader() string {
 		Width(p.width - lipgloss.Width(pathKey)).
 		Render(fmt.Sprintf(" %s", fsext.PrettyPath(p.permission.Path)))
 
-	headerParts := []string{
+	headerParts = append(headerParts,
 		lipgloss.JoinHorizontal(
 			lipgloss.Left,
 			toolKey,
@@ -297,7 +325,7 @@ func (p *permissionDialogCmp) renderHeader() string {
 			pathValue,
 		),
 		baseStyle.Render(strings.Repeat(" ", p.width)),
-	}
+	)
 
 	// Add tool-specific header information
 	switch p.permission.ToolName {

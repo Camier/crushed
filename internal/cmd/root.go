@@ -20,13 +20,13 @@ import (
 )
 
 func init() {
-    rootCmd.PersistentFlags().StringP("cwd", "c", "", "Current working directory")
-    rootCmd.PersistentFlags().StringP("data-dir", "D", "", "Custom crush data directory")
-    rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
-    rootCmd.PersistentFlags().String("approval-mode", "default", "Permission mode: default, auto_edit, or yolo")
+	rootCmd.PersistentFlags().StringP("cwd", "c", "", "Current working directory")
+	rootCmd.PersistentFlags().StringP("data-dir", "D", "", "Custom crush data directory")
+	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
+	rootCmd.PersistentFlags().String("approval-mode", "default", "Permission mode: default, auto_edit, or yolo")
 
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
-    rootCmd.Flags().BoolP("yolo", "y", false, "Automatically accept all permissions (dangerous mode)")
+	rootCmd.Flags().BoolP("yolo", "y", false, "Automatically accept all permissions (dangerous mode)")
 
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(updateProvidersCmd)
@@ -100,11 +100,11 @@ func Execute() {
 // setupApp handles the common setup logic for both interactive and non-interactive modes.
 // It returns the app instance, config, cleanup function, and any error.
 func setupApp(cmd *cobra.Command) (*app.App, error) {
-    debug, _ := cmd.Flags().GetBool("debug")
-    yolo, _ := cmd.Flags().GetBool("yolo")
-    approvalMode, _ := cmd.Flags().GetString("approval-mode")
-    dataDir, _ := cmd.Flags().GetString("data-dir")
-    ctx := cmd.Context()
+	debug, _ := cmd.Flags().GetBool("debug")
+	yolo, _ := cmd.Flags().GetBool("yolo")
+	approvalMode, _ := cmd.Flags().GetString("approval-mode")
+	dataDir, _ := cmd.Flags().GetString("data-dir")
+	ctx := cmd.Context()
 
 	cwd, err := ResolveCwd(cmd)
 	if err != nil {
@@ -116,28 +116,28 @@ func setupApp(cmd *cobra.Command) (*app.App, error) {
 		return nil, err
 	}
 
-    if cfg.Permissions == nil {
-        cfg.Permissions = &config.Permissions{}
-    }
-    // Backward compatibility: -y overrides approval-mode
-    if yolo {
-        approvalMode = "yolo"
-    }
-    switch approvalMode {
-    case "yolo":
-        cfg.Permissions.SkipRequests = true
-    case "auto_edit":
-        // auto-approve edit tools; still prompt for shell
-        // Merge with existing allowlist if present
-        auto := []string{"edit", "write", "multiedit"}
-        if len(cfg.Permissions.AllowedTools) == 0 {
-            cfg.Permissions.AllowedTools = auto
-        } else {
-            cfg.Permissions.AllowedTools = append(cfg.Permissions.AllowedTools, auto...)
-        }
-    default:
-        // default mode: no special changes
-    }
+	if cfg.Permissions == nil {
+		cfg.Permissions = &config.Permissions{}
+	}
+	// Backward compatibility: -y overrides approval-mode
+	if yolo {
+		approvalMode = "yolo"
+	}
+	switch approvalMode {
+	case "yolo":
+		cfg.Permissions.SkipRequests = true
+	case "auto_edit":
+		// auto-approve edit tools; still prompt for shell
+		// Merge with existing allowlist if present
+		auto := []string{"edit", "write", "multiedit"}
+		if len(cfg.Permissions.AllowedTools) == 0 {
+			cfg.Permissions.AllowedTools = auto
+		} else {
+			cfg.Permissions.AllowedTools = append(cfg.Permissions.AllowedTools, auto...)
+		}
+	default:
+		// default mode: no special changes
+	}
 
 	if err := createDotCrushDir(cfg.Options.DataDirectory); err != nil {
 		return nil, err

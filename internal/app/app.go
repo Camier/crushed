@@ -49,6 +49,10 @@ type App struct {
 	events          chan tea.Msg
 	tuiWG           *sync.WaitGroup
 
+	providerStatusBroker *pubsub.Broker[ProviderStatus]
+	providerStatusMu     sync.RWMutex
+	providerStatus       ProviderStatus
+
 	// global context and cleanup functions
 	globalCtx    context.Context
 	cleanupFuncs []func() error
@@ -79,12 +83,18 @@ func New(ctx context.Context, conn *sql.DB, cfg *config.Config) (*App, error) {
 
 		watcherCancelFuncs: csync.NewSlice[context.CancelFunc](),
 
-		events:          make(chan tea.Msg, 100),
-		serviceEventsWG: &sync.WaitGroup{},
-		tuiWG:           &sync.WaitGroup{},
+		events:               make(chan tea.Msg, 100),
+		serviceEventsWG:      &sync.WaitGroup{},
+		tuiWG:                &sync.WaitGroup{},
+		providerStatusBroker: pubsub.NewBroker[ProviderStatus](),
 	}
 
 	app.setupEvents()
+
+	app.cleanupFuncs = append(app.cleanupFuncs, func() error {
+		app.providerStatusBroker.Shutdown()
+		return nil
+	})
 
 	// Start the global watcher
 	if err := watcher.Start(); err != nil {
@@ -105,6 +115,9 @@ func New(ctx context.Context, conn *sql.DB, cfg *config.Config) (*App, error) {
 	} else {
 		slog.Warn("No agent configuration found")
 	}
+
+	app.startProviderStatusMonitor()
+
 	return app, nil
 }
 
@@ -217,7 +230,14 @@ func (app *App) RunNonInteractive(ctx context.Context, prompt string, quiet bool
 }
 
 func (app *App) UpdateAgentModel() error {
-	return app.CoderAgent.UpdateModel()
+	if app.CoderAgent == nil {
+		return nil
+	}
+	if err := app.CoderAgent.UpdateModel(); err != nil {
+		return err
+	}
+	app.refreshProviderStatus()
+	return nil
 }
 
 func (app *App) setupEvents() {
@@ -230,6 +250,7 @@ func (app *App) setupEvents() {
 	setupSubscriber(ctx, app.serviceEventsWG, "history", app.History.Subscribe, app.events)
 	setupSubscriber(ctx, app.serviceEventsWG, "mcp", agent.SubscribeMCPEvents, app.events)
 	setupSubscriber(ctx, app.serviceEventsWG, "lsp", SubscribeLSPEvents, app.events)
+	setupSubscriber(ctx, app.serviceEventsWG, "provider-status", app.SubscribeProviderStatus, app.events)
 	cleanupFunc := func() error {
 		cancel()
 		app.serviceEventsWG.Wait()
