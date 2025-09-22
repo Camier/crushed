@@ -14,6 +14,8 @@ import (
 	"github.com/charmbracelet/crush/internal/tui/components/chat"
 	"github.com/charmbracelet/crush/internal/tui/components/core"
 	"github.com/charmbracelet/crush/internal/tui/components/dialogs"
+	"github.com/charmbracelet/crush/internal/tui/components/dialogs/doctor"
+	"github.com/charmbracelet/crush/internal/tui/components/dialogs/lspignore"
 	"github.com/charmbracelet/crush/internal/tui/exp/list"
 	"github.com/charmbracelet/crush/internal/tui/styles"
 	"github.com/charmbracelet/crush/internal/tui/util"
@@ -349,6 +351,22 @@ func (c *commandDialogCmp) defaultCommands() []Command {
 			},
 		})
 	}
+	commands = append(commands, Command{
+		ID:          "edit_lsp_ignore",
+		Title:       "Edit LSP Ignore Paths",
+		Description: "Manage directories the LSP watcher ignores",
+		Handler: func(cmd Command) tea.Cmd {
+			return util.CmdHandler(dialogs.OpenDialogMsg{Model: lspignore.New()})
+		},
+	})
+	commands = append(commands, Command{
+		ID:          "provider_doctor",
+		Title:       "Diagnose Providers",
+		Description: "Run provider health checks and startup helpers",
+		Handler: func(cmd Command) tea.Cmd {
+			return util.CmdHandler(dialogs.OpenDialogMsg{Model: doctor.NewProvidersDialog()})
+		},
+	})
 	if c.sessionID != "" {
 		agentCfg := config.Get().Agents["coder"]
 		model := config.Get().GetModelByType(agentCfg.Model)

@@ -43,6 +43,7 @@ func Load(workingDir, dataDir string, debug bool) (*Config, error) {
 	// uses default config paths
 	configPaths := []string{
 		globalConfig(),
+		legacyGlobalConfigData(),
 		GlobalConfigData(),
 		filepath.Join(workingDir, fmt.Sprintf("%s.json", appName)),
 		filepath.Join(workingDir, fmt.Sprintf(".%s.json", appName)),
@@ -346,6 +347,13 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 	slices.Sort(c.Options.ContextPaths)
 	c.Options.ContextPaths = slices.Compact(c.Options.ContextPaths)
 
+	if c.Options.LSPIgnorePaths == nil {
+		c.Options.LSPIgnorePaths = []string{}
+	}
+	c.Options.LSPIgnorePaths = append(defaultLSPIgnorePaths, c.Options.LSPIgnorePaths...)
+	slices.Sort(c.Options.LSPIgnorePaths)
+	c.Options.LSPIgnorePaths = slices.Compact(c.Options.LSPIgnorePaths)
+
 	if str, ok := os.LookupEnv("CRUSH_DISABLE_PROVIDER_AUTO_UPDATE"); ok {
 		c.Options.DisableProviderAutoUpdate, _ = strconv.ParseBool(str)
 	}
@@ -597,9 +605,24 @@ func globalConfig() string {
 	return filepath.Join(home.Dir(), ".config", appName, fmt.Sprintf("%s.json", appName))
 }
 
-// GlobalConfigData returns the path to the main data directory for the application.
-// this config is used when the app overrides configurations instead of updating the global config.
-func GlobalConfigData() string {
+func configOverridesPath() string {
+	xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	if xdgConfigHome != "" {
+		return filepath.Join(xdgConfigHome, appName, fmt.Sprintf("%s.state.json", appName))
+	}
+
+	if runtime.GOOS == "windows" {
+		localAppData := os.Getenv("LOCALAPPDATA")
+		if localAppData == "" {
+			localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
+		}
+		return filepath.Join(localAppData, appName, fmt.Sprintf("%s.state.json", appName))
+	}
+
+	return filepath.Join(home.Dir(), ".config", appName, fmt.Sprintf("%s.state.json", appName))
+}
+
+func legacyGlobalConfigData() string {
 	xdgDataHome := os.Getenv("XDG_DATA_HOME")
 	if xdgDataHome != "" {
 		return filepath.Join(xdgDataHome, appName, fmt.Sprintf("%s.json", appName))
@@ -617,4 +640,50 @@ func GlobalConfigData() string {
 	}
 
 	return filepath.Join(home.Dir(), ".local", "share", appName, fmt.Sprintf("%s.json", appName))
+}
+
+// GlobalConfigData returns the path where crush writes mutable user overrides.
+// Overrides now live alongside other configuration files per the XDG Base Directory specification.
+func GlobalConfigData() string {
+	return migrateLegacyOverrides(configOverridesPath(), legacyGlobalConfigData())
+}
+
+func migrateLegacyOverrides(targetPath, legacyPath string) string {
+	if targetPath == legacyPath {
+		return targetPath
+	}
+
+	if _, err := os.Stat(targetPath); err == nil {
+		return targetPath
+	} else if err != nil && !os.IsNotExist(err) {
+		slog.Warn("unable to stat overrides file", "path", targetPath, "error", err)
+		return targetPath
+	}
+
+	data, err := os.ReadFile(legacyPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("unable to read legacy overrides file", "path", legacyPath, "error", err)
+		}
+		return targetPath
+	}
+
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		slog.Warn("unable to create overrides directory", "path", targetPath, "error", err)
+		return targetPath
+	}
+
+	if err := os.WriteFile(targetPath, data, 0o600); err != nil {
+		slog.Warn("unable to migrate overrides file", "path", targetPath, "error", err)
+		return targetPath
+	}
+
+	if err := os.Remove(legacyPath); err != nil && !os.IsNotExist(err) {
+		slog.Warn("unable to remove legacy overrides file", "path", legacyPath, "error", err)
+	} else if err == nil {
+		slog.Info("removed legacy overrides file", "path", legacyPath)
+	}
+
+	slog.Info("migrated crush overrides to config directory", "from", legacyPath, "to", targetPath)
+	return targetPath
 }

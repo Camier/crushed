@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/config"
@@ -143,7 +140,7 @@ var modelsUseCmd = &cobra.Command{
 			return err
 		}
 
-		if err := ensureProviderReady(cmd.Context(), cwd, prov); err != nil {
+		if err := providerstatus.EnsureProviderReady(cmd.Context(), cwd, prov); err != nil {
 			return err
 		}
 
@@ -223,79 +220,4 @@ func formatReasoning(reason string) string {
 		return ""
 	}
 	return fmt.Sprintf(" (reasoning: %s)", reason)
-}
-
-func ensureProviderReady(ctx context.Context, cwd string, prov config.ProviderConfig) error {
-	if prov.StartupCommand == "" {
-		return nil
-	}
-	if os.Getenv("CRUSH_SKIP_PROVIDER_STARTUP") == "1" {
-		return nil
-	}
-
-	healthURL, err := providerstatus.BuildHealthURL(prov)
-	if err != nil {
-		return err
-	}
-
-	if ok, _, checkErr := providerstatus.CheckHealthURL(ctx, nil, prov, healthURL); checkErr == nil && ok {
-		return nil
-	}
-
-	providerName := prov.ID
-	if providerName == "" {
-		providerName = prov.Name
-	}
-	fmt.Fprintf(os.Stdout, "Provider %s not reachable, executing startup command...\n", providerName)
-
-	timeoutSeconds := prov.StartupTimeoutSeconds
-	if timeoutSeconds <= 0 {
-		timeoutSeconds = 60
-	}
-	deadlineCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
-	defer cancel()
-
-	cmd := buildShellCommand(deadlineCtx, prov.StartupCommand)
-	cmd.Dir = cwd
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start provider command: %w", err)
-	}
-
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-deadlineCtx.Done():
-			if cmd.ProcessState == nil && cmd.Process != nil {
-				_ = cmd.Process.Kill()
-			}
-			return fmt.Errorf("provider did not become ready within %d seconds", timeoutSeconds)
-		case err := <-done:
-			if err != nil {
-				return fmt.Errorf("provider startup command exited with error: %w", err)
-			}
-			// Command exited successfully; continue polling in case it spawned a background process.
-		case <-ticker.C:
-			if ok, _, checkErr := providerstatus.CheckHealthURL(ctx, nil, prov, healthURL); checkErr == nil && ok {
-				fmt.Fprintln(os.Stdout, "Provider is ready.")
-				return nil
-			}
-		}
-	}
-}
-
-func buildShellCommand(ctx context.Context, command string) *exec.Cmd {
-	if runtime.GOOS == "windows" {
-		return exec.CommandContext(ctx, "cmd", "/c", command)
-	}
-	return exec.CommandContext(ctx, "bash", "-lc", command)
 }

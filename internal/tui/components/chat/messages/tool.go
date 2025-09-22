@@ -197,7 +197,7 @@ func (m *toolCallCmp) View() string {
 	if !m.expanded && !m.cancelled {
 		content = m.collapsedView(content)
 	} else if m.expanded && !m.cancelled {
-		hint := styles.CurrentTheme().S().Muted.Render("… press enter to collapse")
+		hint := styles.CurrentTheme().S().Muted.Render("Press Enter or Space to collapse")
 		content = content + "\n" + hint
 	}
 	return box.Render(content)
@@ -716,13 +716,21 @@ func (m *toolCallCmp) SetIsNested(isNested bool) {
 func (m *toolCallCmp) collapsedView(full string) string {
 	const maxLines = 8
 	lines := strings.Split(full, "\n")
-	if len(lines) <= maxLines {
-		return full
+	truncated := len(lines) > maxLines
+	preview := full
+	if truncated {
+		preview = strings.Join(lines[:maxLines], "\n")
 	}
 
-	preview := strings.Join(lines[:maxLines], "\n")
-	hint := styles.CurrentTheme().S().Muted.Render("… press enter to expand")
-	return preview + "\n" + hint
+	hint := styles.CurrentTheme().S().Muted.Render("Press Enter or Space to expand")
+	if strings.TrimSpace(preview) == "" {
+		return hint
+	}
+	if !strings.HasSuffix(preview, "\n") {
+		preview += "\n"
+	}
+	preview += hint
+	return preview
 }
 
 func (m *toolCallCmp) pendingTail() string {

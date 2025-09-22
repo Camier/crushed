@@ -9,6 +9,7 @@ type KeyMap struct {
 	Next,
 	Previous,
 	Tab,
+	Refresh,
 	Close key.Binding
 
 	isAPIKeyHelp  bool
@@ -33,6 +34,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "toggle type"),
 		),
+		Refresh: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "refresh status"),
+		),
 		Close: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "cancel"),
@@ -47,6 +52,7 @@ func (k KeyMap) KeyBindings() []key.Binding {
 		k.Next,
 		k.Previous,
 		k.Tab,
+		k.Refresh,
 		k.Close,
 	}
 }
@@ -79,6 +85,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 			key.WithHelp("↑↓", "choose"),
 		),
 		k.Tab,
+		k.Refresh,
 		k.Select,
 		k.Close,
 	}

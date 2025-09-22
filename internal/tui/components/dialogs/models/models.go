@@ -1,7 +1,9 @@
 package models
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/v2/help"
@@ -10,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
 	"github.com/charmbracelet/crush/internal/config"
+	"github.com/charmbracelet/crush/internal/providerstatus"
 	"github.com/charmbracelet/crush/internal/tui/components/core"
 	"github.com/charmbracelet/crush/internal/tui/components/dialogs"
 	"github.com/charmbracelet/crush/internal/tui/exp/list"
@@ -46,6 +49,16 @@ type ModelDialog interface {
 	dialogs.DialogModel
 }
 
+type providerHealth struct {
+	Ready   bool
+	Detail  string
+	Checked bool
+}
+
+type providerHealthMsg struct {
+	statuses map[string]providerHealth
+}
+
 type ModelOption struct {
 	Provider catwalk.Provider
 	Model    catwalk.Model
@@ -59,6 +72,8 @@ type modelDialogCmp struct {
 	modelList *ModelListComponent
 	keyMap    KeyMap
 	help      help.Model
+
+	providerStatuses map[string]providerHealth
 
 	// API key state
 	needsAPIKey       bool
@@ -86,16 +101,45 @@ func NewModelDialogCmp() ModelDialog {
 	help.Styles = t.S().Help
 
 	return &modelDialogCmp{
-		modelList:   modelList,
-		apiKeyInput: apiKeyInput,
-		width:       defaultWidth,
-		keyMap:      DefaultKeyMap(),
-		help:        help,
+		modelList:        modelList,
+		apiKeyInput:      apiKeyInput,
+		width:            defaultWidth,
+		keyMap:           DefaultKeyMap(),
+		help:             help,
+		providerStatuses: map[string]providerHealth{},
 	}
 }
 
 func (m *modelDialogCmp) Init() tea.Cmd {
-	return tea.Batch(m.modelList.Init(), m.apiKeyInput.Init())
+	return tea.Batch(
+		m.modelList.Init(),
+		m.apiKeyInput.Init(),
+		m.requestProviderHealth(),
+	)
+}
+
+func (m *modelDialogCmp) requestProviderHealth() tea.Cmd {
+	return func() tea.Msg {
+		cfg := config.Get()
+		statuses := make(map[string]providerHealth)
+		for providerID, providerCfg := range cfg.Providers.Seq2() {
+			if providerCfg.Disable {
+				continue
+			}
+			ready, detail, err := providerstatus.CheckHealth(context.Background(), nil, providerCfg)
+			status := providerHealth{Checked: true, Ready: ready}
+			if err != nil {
+				status.Detail = err.Error()
+			} else {
+				status.Detail = detail
+				if !ready && status.Detail == "" {
+					status.Detail = "unreachable"
+				}
+			}
+			statuses[providerID] = status
+		}
+		return providerHealthMsg{statuses: statuses}
+	}
 }
 
 func (m *modelDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -110,8 +154,16 @@ func (m *modelDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		u, cmd := m.apiKeyInput.Update(msg)
 		m.apiKeyInput = u.(*APIKeyInput)
 		return m, cmd
+	case providerHealthMsg:
+		m.providerStatuses = msg.statuses
+		return m, m.modelList.SetProviderStatuses(msg.statuses)
 	case tea.KeyPressMsg:
 		switch {
+		case key.Matches(msg, m.keyMap.Refresh):
+			return m, tea.Sequence(
+				util.ReportInfo("Refreshing provider status..."),
+				m.requestProviderHealth(),
+			)
 		case key.Matches(msg, m.keyMap.Select):
 			if m.isAPIKeyValid {
 				return m, m.saveAPIKeyAndContinue(m.apiKeyValue)
@@ -178,13 +230,15 @@ func (m *modelDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						ModelType: modelType,
 					}),
 				)
-			} else {
-				// Provider not configured, show API key input
+			} else if m.providerNeedsAPIKey(selectedItem.Provider) {
+				// Provider not configured and requires an API key
 				m.needsAPIKey = true
 				m.selectedModel = selectedItem
 				m.selectedModelType = modelType
 				m.apiKeyInput.SetProviderName(selectedItem.Provider.Name)
 				return m, nil
+			} else {
+				return m, m.configureProviderAndSelect(*selectedItem, modelType)
 			}
 		case key.Matches(msg, m.keyMap.Tab):
 			if m.needsAPIKey {
@@ -351,6 +405,10 @@ func (m *modelDialogCmp) isProviderConfigured(providerID string) bool {
 	return false
 }
 
+func (m *modelDialogCmp) providerNeedsAPIKey(provider catwalk.Provider) bool {
+	return strings.TrimSpace(provider.APIKey) != ""
+}
+
 func (m *modelDialogCmp) getProvider(providerID catwalk.InferenceProvider) (*catwalk.Provider, error) {
 	cfg := config.Get()
 	providers, err := config.Providers(cfg)
@@ -388,6 +446,41 @@ func (m *modelDialogCmp) saveAPIKeyAndContinue(apiKey string) tea.Cmd {
 				MaxTokens:       selectedModel.Model.DefaultMaxTokens,
 			},
 			ModelType: m.selectedModelType,
+		}),
+	)
+}
+
+func (m *modelDialogCmp) configureProviderAndSelect(option ModelOption, modelType config.SelectedModelType) tea.Cmd {
+	cfg := config.Get()
+
+	providerID := string(option.Provider.ID)
+	providerCfg := config.ProviderConfig{
+		ID:            providerID,
+		Name:          option.Provider.Name,
+		BaseURL:       option.Provider.APIEndpoint,
+		Type:          option.Provider.Type,
+		ExtraHeaders:  option.Provider.DefaultHeaders,
+		Models:        make([]catwalk.Model, len(option.Provider.Models)),
+		DisableStream: false,
+	}
+	copy(providerCfg.Models, option.Provider.Models)
+
+	if err := cfg.SetConfigField(fmt.Sprintf("providers.%s", providerID), providerCfg); err != nil {
+		return util.ReportError(fmt.Errorf("failed to save provider configuration: %w", err))
+	}
+
+	cfg.Providers.Set(providerID, providerCfg)
+
+	return tea.Sequence(
+		util.CmdHandler(dialogs.CloseDialogMsg{}),
+		util.CmdHandler(ModelSelectedMsg{
+			Model: config.SelectedModel{
+				Model:           option.Model.ID,
+				Provider:        providerID,
+				ReasoningEffort: option.Model.DefaultReasoningEffort,
+				MaxTokens:       option.Model.DefaultMaxTokens,
+			},
+			ModelType: modelType,
 		}),
 	)
 }

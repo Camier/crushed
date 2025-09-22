@@ -44,7 +44,7 @@
     },
     "LSPConfig": {
       "properties": {
-        "enabled": {
+        "disabled": {
           "type": "boolean",
           "description": "Whether this LSP server is disabled",
           "default": false
@@ -284,6 +284,13 @@
           "description": "Disable providers auto-update",
           "default": false
         },
+        "lsp_ignore_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Additional gitignore-style patterns to ignore when watching files for LSP events"
+        },
         "stream_shell": {
           "type": "boolean",
           "description": "Default to streaming output for foreground shell commands",
@@ -368,13 +375,12 @@
         },
         "startup_command": {
           "type": "string",
-          "description": "Shell command to execute when this provider is selected to ensure the service is running"
+          "description": "Shell command to run when the provider is selected to ensure the service is running"
         },
         "startup_timeout_seconds": {
           "type": "integer",
           "description": "How long to wait (seconds) for the startup command to make the provider ready",
-          "default": 60,
-          "minimum": 0
+          "default": 60
         },
         "startup_health_path": {
           "type": "string",

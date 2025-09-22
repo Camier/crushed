@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -136,6 +138,10 @@ func Start() error {
 			} else {
 				slog.Warn("lsp watcher: Failed to increase file descriptor limit", "error", rlimitErr)
 			}
+		}
+		if isPermissionError(err) {
+			slog.Warn("lsp watcher: permission denied while setting up watch, continuing without recursive watch", "path", watchPath, "error", err)
+			return nil
 		}
 		return fmt.Errorf("lsp watcher: error setting up recursive watch on %s: %w", root, err)
 	}
@@ -365,11 +371,31 @@ func isFileLimitError(err error) bool {
 	return errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE)
 }
 
+func isPermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, fs.ErrPermission) {
+		return true
+	}
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		if errors.Is(pathErr.Err, fs.ErrPermission) {
+			return true
+		}
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "permission denied")
+}
+
 // setupIgnoreSystem configures the notify library's ignore system
 // to use .crushignore and .gitignore files for filtering file events
 func setupIgnoreSystem(root string) error {
 	// Create a new ignore matcher for the workspace root
 	im := notify.NewIgnoreMatcher(root)
+
+	if cfg := config.Get(); cfg != nil && cfg.Options != nil {
+		addConfiguredIgnorePatterns(im, root, cfg.Options.LSPIgnorePaths)
+	}
 
 	// Load .crushignore file if it exists
 	crushignorePath := filepath.Join(root, ".crushignore")
@@ -391,4 +417,59 @@ func setupIgnoreSystem(root string) error {
 	notify.SetIgnoreMatcher(im)
 
 	return nil
+}
+
+func ReloadIgnoreSystem() {
+	gw := instance()
+	if !gw.started.Load() || gw.root == "" {
+		return
+	}
+	if err := setupIgnoreSystem(gw.root); err != nil {
+		slog.Warn("lsp watcher: Failed to reload ignore patterns", "error", err)
+		return
+	}
+	slog.Info("lsp watcher: reloaded ignore patterns", "root", gw.root)
+}
+
+func addConfiguredIgnorePatterns(im *notify.IgnoreMatcher, root string, patterns []string) {
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			continue
+		}
+
+		expanded, err := fsext.Expand(pattern)
+		if err != nil {
+			slog.Warn("lsp watcher: failed to expand ignore pattern", "pattern", pattern, "error", err)
+			expanded = pattern
+		}
+
+		if strings.ContainsAny(expanded, "*?[]") {
+			im.AddPattern(filepath.ToSlash(expanded))
+			continue
+		}
+
+		if filepath.IsAbs(expanded) {
+			if rel, err := filepath.Rel(root, expanded); err == nil && !strings.HasPrefix(rel, "..") {
+				addDirectoryPattern(im, rel)
+				continue
+			}
+			// Fall back to basename when outside workspace
+			expanded = filepath.Base(expanded)
+		}
+
+		addDirectoryPattern(im, expanded)
+	}
+}
+
+func addDirectoryPattern(im *notify.IgnoreMatcher, rel string) {
+	rel = strings.TrimPrefix(rel, "./")
+	rel = filepath.ToSlash(rel)
+	if rel == "" {
+		return
+	}
+	im.AddPattern(rel)
+	if !strings.HasSuffix(rel, "/") {
+		im.AddPattern(rel + "/")
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -40,6 +41,12 @@ var defaultContextPaths = []string{
 	"AGENTS.md",
 	"agents.md",
 	"Agents.md",
+}
+
+var defaultLSPIgnorePaths = []string{
+	".crush/logs",
+	".crush/tmp",
+	".local/share/containers",
 }
 
 type SelectedModelType string
@@ -126,7 +133,7 @@ type MCPConfig struct {
 }
 
 type LSPConfig struct {
-	Disabled  bool              `json:"enabled,omitempty" jsonschema:"description=Whether this LSP server is disabled,default=false"`
+	Disabled  bool              `json:"disabled,omitempty" jsonschema:"description=Whether this LSP server is disabled,default=false"`
 	Command   string            `json:"command" jsonschema:"required,description=Command to execute for the LSP server,example=gopls"`
 	Args      []string          `json:"args,omitempty" jsonschema:"description=Arguments to pass to the LSP server command"`
 	Env       map[string]string `json:"env,omitempty" jsonschema:"description=Environment variables to set to the LSP server command"`
@@ -154,6 +161,7 @@ type Options struct {
 	DataDirectory             string      `json:"data_directory,omitempty" jsonschema:"description=Directory for storing application data (relative to working directory),default=.crush,example=.crush"` // Relative to the cwd
 	DisabledTools             []string    `json:"disabled_tools" jsonschema:"description=Tools to disable"`
 	DisableProviderAutoUpdate bool        `json:"disable_provider_auto_update,omitempty" jsonschema:"description=Disable providers auto-update,default=false"`
+	LSPIgnorePaths            []string    `json:"lsp_ignore_paths,omitempty" jsonschema:"description=Additional gitignore-style patterns to ignore when watching files for LSP events"`
 	// When true, foreground shell commands default to streaming output.
 	StreamShell bool `json:"stream_shell,omitempty" jsonschema:"description=Default to streaming output for foreground shell commands,default=false"`
 }
@@ -410,6 +418,9 @@ func (c *Config) SetConfigField(key string, value any) error {
 	if err != nil {
 		return fmt.Errorf("failed to set config field %s: %w", key, err)
 	}
+	if err := os.MkdirAll(filepath.Dir(c.dataConfigDir), 0o755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
 	if err := os.WriteFile(c.dataConfigDir, []byte(newValue), 0o600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
@@ -456,6 +467,61 @@ func (c *Config) SetProviderAPIKey(providerID, apiKey string) error {
 	}
 	// Store the updated provider config
 	c.Providers.Set(providerID, providerConfig)
+	return nil
+}
+
+func (c *Config) CustomLSPIgnorePaths() []string {
+	if c.Options == nil {
+		return nil
+	}
+	defaults := make(map[string]struct{}, len(defaultLSPIgnorePaths))
+	for _, path := range defaultLSPIgnorePaths {
+		defaults[path] = struct{}{}
+	}
+
+	var custom []string
+	seen := make(map[string]struct{})
+	for _, path := range c.Options.LSPIgnorePaths {
+		if _, isDefault := defaults[path]; isDefault {
+			continue
+		}
+		if _, dup := seen[path]; dup {
+			continue
+		}
+		seen[path] = struct{}{}
+		custom = append(custom, path)
+	}
+
+	slices.Sort(custom)
+	return custom
+}
+
+func (c *Config) SetLSPIgnorePaths(paths []string) error {
+	cleaned := make([]string, 0, len(paths))
+	seen := make(map[string]struct{})
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		if _, dup := seen[path]; dup {
+			continue
+		}
+		seen[path] = struct{}{}
+		cleaned = append(cleaned, path)
+	}
+
+	if err := c.SetConfigField("options.lsp_ignore_paths", cleaned); err != nil {
+		return fmt.Errorf("failed to update lsp_ignore_paths: %w", err)
+	}
+
+	merged := append([]string{}, defaultLSPIgnorePaths...)
+	merged = append(merged, cleaned...)
+	slices.Sort(merged)
+	merged = slices.Compact(merged)
+	if c.Options != nil {
+		c.Options.LSPIgnorePaths = merged
+	}
 	return nil
 }
 

@@ -1,10 +1,13 @@
 package config
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -52,6 +55,9 @@ func TestConfig_setDefaults(t *testing.T) {
 	require.Equal(t, filepath.Join("/tmp", ".crush"), cfg.Options.DataDirectory)
 	for _, path := range defaultContextPaths {
 		require.Contains(t, cfg.Options.ContextPaths, path)
+	}
+	for _, path := range defaultLSPIgnorePaths {
+		require.Contains(t, cfg.Options.LSPIgnorePaths, path)
 	}
 	require.Equal(t, "/tmp", cfg.workingDir)
 }
@@ -1222,4 +1228,79 @@ func TestConfig_configureSelectedModels(t *testing.T) {
 		require.Equal(t, "openai", large.Provider)
 		require.Equal(t, int64(100), large.MaxTokens)
 	})
+}
+
+func TestGlobalConfigDataMigratesLegacyOverrides(t *testing.T) {
+	tmp := t.TempDir()
+	configHome := filepath.Join(tmp, "config-home")
+	dataHome := filepath.Join(tmp, "data-home")
+
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("XDG_DATA_HOME", dataHome)
+	t.Setenv("HOME", tmp)
+	if runtime.GOOS == "windows" {
+		t.Setenv("LOCALAPPDATA", filepath.Join(tmp, "LocalAppData"))
+		t.Setenv("USERPROFILE", tmp)
+	}
+
+	legacyPath := legacyGlobalConfigData()
+	require.NoError(t, os.MkdirAll(filepath.Dir(legacyPath), 0o755))
+
+	legacyPayload := map[string]any{
+		"models": map[string]any{
+			string(SelectedModelTypeLarge): map[string]any{
+				"model":    "gpt-test",
+				"provider": "openai",
+			},
+		},
+	}
+
+	legacyData, err := json.Marshal(legacyPayload)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(legacyPath, legacyData, 0o600))
+
+	targetPath := GlobalConfigData()
+	expectedPath := filepath.Join(configHome, appName, fmt.Sprintf("%s.state.json", appName))
+	require.Equal(t, expectedPath, targetPath)
+	require.FileExists(t, targetPath)
+
+	migratedData, err := os.ReadFile(targetPath)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(legacyData), string(migratedData))
+
+	_, err = os.Stat(legacyPath)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	cfg := &Config{dataConfigDir: targetPath}
+	require.NoError(t, cfg.SetConfigField("options.debug", true))
+
+	updatedData, err := os.ReadFile(targetPath)
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(updatedData, &parsed))
+
+	rawModels, ok := parsed["models"].(map[string]any)
+	require.True(t, ok)
+	require.Contains(t, rawModels, string(SelectedModelTypeLarge))
+
+	rawOptions, ok := parsed["options"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, rawOptions["debug"])
+}
+
+func TestSetConfigFieldCreatesDirectory(t *testing.T) {
+	tmp := t.TempDir()
+	targetPath := filepath.Join(tmp, "config", "overrides.json")
+
+	cfg := &Config{dataConfigDir: targetPath}
+	require.NoError(t, cfg.SetConfigField("options.debug_lsp", true))
+
+	info, err := os.Stat(targetPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+
+	data, err := os.ReadFile(targetPath)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"options":{"debug_lsp":true}}`, string(data))
 }

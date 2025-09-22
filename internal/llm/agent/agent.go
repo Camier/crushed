@@ -20,6 +20,7 @@ import (
 	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/permission"
+	"github.com/charmbracelet/crush/internal/providerstatus"
 	"github.com/charmbracelet/crush/internal/pubsub"
 	"github.com/charmbracelet/crush/internal/session"
 	"github.com/charmbracelet/crush/internal/shell"
@@ -129,6 +130,10 @@ func NewAgent(
 		return nil, fmt.Errorf("model not found for agent %s", agentCfg.Name)
 	}
 
+	if err := providerstatus.EnsureProviderReady(ctx, cfg.WorkingDir(), *providerCfg); err != nil {
+		return nil, fmt.Errorf("provider %s not ready: %w", providerCfg.ID, err)
+	}
+
 	promptID := agentPromptMap[agentCfg.ID]
 	if promptID == "" {
 		promptID = prompt.PromptDefault
@@ -156,6 +161,12 @@ func NewAgent(
 	smallModel := cfg.GetModelByType(config.SelectedModelTypeSmall)
 	if smallModel.ID == "" {
 		return nil, fmt.Errorf("model %s not found in provider %s", smallModelCfg.Model, smallModelProviderCfg.ID)
+	}
+
+	if smallModelProviderCfg.ID != providerCfg.ID {
+		if err := providerstatus.EnsureProviderReady(ctx, cfg.WorkingDir(), *smallModelProviderCfg); err != nil {
+			return nil, fmt.Errorf("provider %s not ready: %w", smallModelProviderCfg.ID, err)
+		}
 	}
 
 	titleOpts := []provider.ProviderClientOption{

@@ -163,14 +163,37 @@ Configuration itself is stored as a JSON object:
 }
 ```
 
-As an additional note, Crush also stores ephemeral data, such as application state, in one additional location:
+As an additional note, Crush also stores mutable application state alongside your user configuration:
 
 ```bash
 # Unix
-$HOME/.local/share/crush/crush.json
+$HOME/.config/crush/crush.state.json
 
 # Windows
-%LOCALAPPDATA%\crush\crush.json
+%LOCALAPPDATA%\crush\crush.state.json
+```
+
+Existing installs with state under `$HOME/.local/share/crush/crush.json` are migrated automatically on load and the legacy file is removed once the transfer succeeds.
+
+#### Ignoring directories from LSP watchers
+
+You can keep the watcher away from large or permission-restricted directories by supplying
+`lsp_ignore_paths` in your configuration. Paths accept gitignore-style patterns and can be
+absolute or relative to the workspace. A few noisy directories (for example `.crush/logs`
+and `.local/share/containers`) are ignored by default.
+
+Open the in-app Commands palette (`Ctrl+K`) and choose **Edit LSP Ignore Paths** to edit these entries without touching JSON.
+
+```json
+{
+  "options": {
+    "lsp_ignore_paths": [
+      "**/.venv",
+      "build",
+      "$HOME/.cache/containers"
+    ]
+  }
+}
 ```
 
 ### LSPs
@@ -198,6 +221,14 @@ like you would. LSPs can be added manually like so:
   }
 }
 ```
+
+## Development
+
+This repository uses [`task`](https://taskfile.dev) for local workflows. The
+Taskfile pins `GOTOOLCHAIN=go1.25.0` and `GOSUMDB=sum.golang.org`, so the Go
+tool will fetch the required toolchain automatically if you are on Go 1.21+.
+If you prefer to manage toolchains yourself, install Go 1.25 or newer before
+running any `task` targets.
 
 ### MCPs
 
@@ -487,7 +518,9 @@ OpenRouter (Global):
 
 Tip: you can switch the preferred model quickly with `crush models use -t large <provider> <model>`.
 
-Run `crush models status` to confirm your providers are reachable; it hits each health endpoint (respecting any `startup_health_path` or custom headers) so you can spot issues before starting a session.
+Run `crush models status` to confirm your providers are reachable; it hits each health endpoint (respecting any `startup_health_path` or custom headers) so you can spot issues before starting a session. For a deeper check (and to optionally auto-start local providers) use `crush doctor providers --start`.
+
+Inside the TUI you can run the same diagnostics from the Commands palette via **Diagnose Providers**; it shows the checks inline and retries startup commands where available.
 
 If your OpenAI-compatible backend does not implement streaming (SSE), set `disable_stream: true` on the provider. Crush will automatically fall back to a non‑streaming interaction for that provider.
 

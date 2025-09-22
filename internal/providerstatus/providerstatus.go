@@ -37,11 +37,12 @@ func BuildHealthURL(prov config.ProviderConfig) (string, error) {
 // It returns a boolean indicating readiness, an optional detail string for failures, and
 // an error when the request could not be constructed.
 func CheckHealth(ctx context.Context, client *http.Client, prov config.ProviderConfig) (bool, string, error) {
-	healthURL, err := BuildHealthURL(prov)
+	resolved := resolveProviderConfig(prov)
+	healthURL, err := BuildHealthURL(resolved)
 	if err != nil {
 		return false, "", err
 	}
-	return CheckHealthURL(ctx, client, prov, healthURL)
+	return CheckHealthURL(ctx, client, resolved, healthURL)
 }
 
 // CheckHealthURL verifies the readiness of a provider against the supplied URL and configuration.
@@ -50,18 +51,17 @@ func CheckHealthURL(ctx context.Context, client *http.Client, prov config.Provid
 		client = http.DefaultClient
 	}
 
-	req, err := http.NewRequest(http.MethodGet, healthURL, nil)
-	if err != nil {
-		return false, "", fmt.Errorf("failed to create health request: %w", err)
-	}
-	applyHealthHeaders(req, prov)
-
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	ctx, cancel := context.WithTimeout(ctx, defaultHealthTimeout)
 	defer cancel()
-	req = req.WithContext(ctx)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to create health request: %w", err)
+	}
+	applyHealthHeaders(req, prov)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -97,4 +97,43 @@ func applyHealthHeaders(req *http.Request, prov config.ProviderConfig) {
 		}
 		req.Header.Set(key, value)
 	}
+}
+
+func resolveProviderConfig(prov config.ProviderConfig) config.ProviderConfig {
+	cfg := config.Get()
+	if cfg == nil {
+		return prov
+	}
+
+	resolved := prov
+
+	if resolved.BaseURL != "" {
+		if v, err := cfg.Resolve(resolved.BaseURL); err == nil && v != "" {
+			resolved.BaseURL = v
+		}
+	}
+	if resolved.StartupHealthPath != "" {
+		if v, err := cfg.Resolve(resolved.StartupHealthPath); err == nil && v != "" {
+			resolved.StartupHealthPath = v
+		}
+	}
+	if resolved.APIKey != "" {
+		if v, err := cfg.Resolve(resolved.APIKey); err == nil {
+			resolved.APIKey = v
+		}
+	}
+
+	if len(prov.ExtraHeaders) > 0 {
+		resolvedHeaders := make(map[string]string, len(prov.ExtraHeaders))
+		for key, value := range prov.ExtraHeaders {
+			if v, err := cfg.Resolve(value); err == nil {
+				resolvedHeaders[key] = v
+			} else {
+				resolvedHeaders[key] = value
+			}
+		}
+		resolved.ExtraHeaders = resolvedHeaders
+	}
+
+	return resolved
 }
