@@ -37,7 +37,7 @@ func EnsureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 		if detail == "" {
 			detail = "no response"
 		}
-		return fmt.Errorf("provider %s is unreachable (%s). Try selecting a different provider with `crush models use` or configure a startup_command.", providerIdentifier(resolved), detail)
+		return fmt.Errorf("provider %s is unreachable (%s); try selecting a different provider with `crush models use` or configure a startup_command", providerIdentifier(resolved), detail)
 	}
 
 	providerName := providerIdentifier(resolved)

@@ -108,7 +108,7 @@ var (
 	_ json.Marshaler   = &Map[string, any]{}
 )
 
-func (Map[K, V]) JSONSchemaAlias() any {
+func (*Map[K, V]) JSONSchemaAlias() any {
 	m := map[K]V{}
 	return m
 }
