@@ -19,14 +19,52 @@ tasks:
   lint:
     desc: Run base linters
     cmds:
-      - golangci-lint run --path-mode=abs --config=".golangci.yml" --timeout=5m
+      - |
+          set -euo pipefail
+          LINT_BIN="$(command -v golangci-lint || true)"
+          if [ -z "$LINT_BIN" ]; then
+            GOBIN_PATH="$(go env GOBIN)"
+            if [ -n "$GOBIN_PATH" ] && [ -x "$GOBIN_PATH/golangci-lint" ]; then
+              LINT_BIN="$GOBIN_PATH/golangci-lint"
+            fi
+          fi
+          if [ -z "$LINT_BIN" ]; then
+            GOPATH_BIN="$(go env GOPATH)/bin/golangci-lint"
+            if [ -x "$GOPATH_BIN" ]; then
+              LINT_BIN="$GOPATH_BIN"
+            fi
+          fi
+          if [ -z "$LINT_BIN" ]; then
+            echo "golangci-lint not found; run 'task lint:install' or add it to PATH" >&2
+            exit 1
+          fi
+          "$LINT_BIN" run --path-mode=abs --config=".golangci.yml" --timeout=5m
     env:
       GOEXPERIMENT: null
 
   lint-fix:
     desc: Run base linters and fix issues
     cmds:
-      - golangci-lint run --path-mode=abs --config=".golangci.yml" --timeout=5m --fix
+      - |
+          set -euo pipefail
+          LINT_BIN="$(command -v golangci-lint || true)"
+          if [ -z "$LINT_BIN" ]; then
+            GOBIN_PATH="$(go env GOBIN)"
+            if [ -n "$GOBIN_PATH" ] && [ -x "$GOBIN_PATH/golangci-lint" ]; then
+              LINT_BIN="$GOBIN_PATH/golangci-lint"
+            fi
+          fi
+          if [ -z "$LINT_BIN" ]; then
+            GOPATH_BIN="$(go env GOPATH)/bin/golangci-lint"
+            if [ -x "$GOPATH_BIN" ]; then
+              LINT_BIN="$GOPATH_BIN"
+            fi
+          fi
+          if [ -z "$LINT_BIN" ]; then
+            echo "golangci-lint not found; run 'task lint:install' or add it to PATH" >&2
+            exit 1
+          fi
+          "$LINT_BIN" run --path-mode=abs --config=".golangci.yml" --timeout=5m --fix
     env:
       GOEXPERIMENT: null
 
