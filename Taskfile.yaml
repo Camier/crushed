@@ -4,7 +4,6 @@ version: "3"
 
 env:
   CGO_ENABLED: 0
-  GOEXPERIMENT: greenteagc
   GOSUMDB: sum.golang.org
   GOTOOLCHAIN: go1.25.0
 
@@ -68,6 +67,13 @@ tasks:
     env:
       GOEXPERIMENT: null
 
+  fmt:install:
+    desc: Install gofumpt
+    cmds:
+      - go install mvdan.cc/gofumpt@latest
+    env:
+      GOTOOLCHAIN: go1.25.0
+
   build:
     desc: Run build
     cmds:
@@ -83,12 +89,32 @@ tasks:
   fmt:
     desc: Run gofumpt
     cmds:
-      - gofumpt -w .
+      - |
+          set -euo pipefail
+          FMT_BIN="$(command -v gofumpt || true)"
+          if [ -z "$FMT_BIN" ]; then
+            GOBIN_PATH="$(go env GOBIN)"
+            if [ -n "$GOBIN_PATH" ] && [ -x "$GOBIN_PATH/gofumpt" ]; then
+              FMT_BIN="$GOBIN_PATH/gofumpt"
+            fi
+          fi
+          if [ -z "$FMT_BIN" ]; then
+            GOPATH_BIN="$(go env GOPATH)/bin/gofumpt"
+            if [ -x "$GOPATH_BIN" ]; then
+              FMT_BIN="$GOPATH_BIN"
+            fi
+          fi
+          if [ -z "$FMT_BIN" ]; then
+            echo "gofumpt not found; run 'task fmt:install' or add it to PATH" >&2
+            exit 1
+          fi
+          "$FMT_BIN" -w .
 
   dev:
     desc: Run with profiling enabled
     env:
       CRUSH_PROFILE: true
+      GOEXPERIMENT: greenteagc
     cmds:
       - go run .
 
