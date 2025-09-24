@@ -190,8 +190,15 @@ func (a *APIKeyInput) Tick() tea.Cmd {
 }
 
 func (a *APIKeyInput) SetWidth(width int) {
+	if width < 0 {
+		width = 0
+	}
 	a.width = width
-	a.input.SetWidth(width - 4)
+	inputWidth := width - 4
+	if inputWidth < 0 {
+		inputWidth = 0
+	}
+	a.input.SetWidth(inputWidth)
 }
 
 func (a *APIKeyInput) Reset() {

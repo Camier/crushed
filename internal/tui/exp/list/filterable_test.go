@@ -9,10 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:paralleltest // uses global theme/state; run serially to avoid races under -race
 func TestFilterableList(t *testing.T) {
-	t.Parallel()
 	t.Run("should create simple filterable list", func(t *testing.T) {
-		t.Parallel()
 		items := []FilterableItem{}
 		for i := range 5 {
 			item := NewFilterableItem(fmt.Sprintf("Item %d", i))

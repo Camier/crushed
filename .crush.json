@@ -1,376 +1,63 @@
 {
   "$schema": "https://charm.land/crush.json",
   "providers": {
-    "vllm": {
-      "name": "vLLM (OpenAI compatible, local GPU)",
-      "base_url": "http://127.0.0.1:8000/v1/",
+    "vllm-local": {
+      "name": "vLLM (local)",
+      "base_url": "$(echo ${CRUSH_VLLM_BASE_URL:-http://127.0.0.1:8000/v1/})",
       "type": "openai",
-      "startup_command": "env VLLM_USE_V1=1 python -m vllm.entrypoints.openai.api_server --model \"/run/media/miko/AYA/ai-models/vllm/openorca-7b\" --served-model-name openorca-7b --host 127.0.0.1 --port 8000 --dtype float16 --gpu-memory-utilization 0.85 --max-model-len 4096",
-      "startup_timeout_seconds": 900,
-      "startup_health_path": "/models",
+      "startup_command": "$(echo ${CRUSH_VLLM_STARTUP_COMMAND:-})",
+      "startup_timeout_seconds": 600,
+      "startup_health_path": "$(echo ${CRUSH_VLLM_HEALTH_PATH:-/models})",
       "models": [
         {
-          "name": "Qwen2.5 Coder 3B",
-          "id": "Qwen/Qwen2.5-Coder-3B",
+          "name": "$(echo ${CRUSH_VLLM_MODEL_NAME:-local-model})",
+          "id": "$(echo ${CRUSH_VLLM_MODEL_ID:-local-model})",
           "context_window": 8192,
-          "default_max_tokens": 1024
-        },
-        {
-          "name": "OpenOrca Mistral 7B",
-          "id": "openorca-7b",
-          "context_window": 8192,
-          "default_max_tokens": 1024
-        },
-        {
-          "name": "Nous Hermes 7B (Mistral)",
-          "id": "nous-hermes-7b",
-          "context_window": 8192,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "vllm-nous": {
-      "name": "vLLM (Nous Hermes 7B, local GPU)",
-      "base_url": "http://127.0.0.1:8001/v1/",
-      "type": "openai",
-      "startup_command": "env VLLM_USE_V1=1 python -m vllm.entrypoints.openai.api_server --model \"/run/media/miko/AYA/ai-models/vllm/nous-hermes-7b\" --served-model-name nous-hermes-7b --host 127.0.0.1 --port 8001 --dtype float16 --gpu-memory-utilization 0.85 --max-model-len 4096",
-      "startup_timeout_seconds": 900,
-      "startup_health_path": "/models",
-      "models": [
-        {
-          "name": "Nous Hermes 7B (Mistral)",
-          "id": "nous-hermes-7b",
-          "context_window": 8192,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "vllm-dolphin-zh": {
-      "name": "vLLM (Dolphin Llama3 ZH)",
-      "base_url": "http://127.0.0.1:8002/v1/",
-      "type": "openai",
-      "startup_command": "env VLLM_USE_V1=1 python -m vllm.entrypoints.openai.api_server --model \"/run/media/miko/AYA/ai-models/vllm/dolphin-llama3-zh\" --served-model-name dolphin-llama3-zh --host 127.0.0.1 --port 8002 --dtype float16 --gpu-memory-utilization 0.80 --max-model-len 3072 --max-num-batched-tokens 1024 --max-num-seqs 4",
-      "startup_timeout_seconds": 900,
-      "startup_health_path": "/models",
-      "models": [
-        {
-          "name": "Dolphin Llama3 ZH (Unsloth)",
-          "id": "dolphin-llama3-zh",
-          "context_window": 3072,
           "default_max_tokens": 1024
         }
       ]
     },
     "llamacpp": {
-      "name": "llama.cpp (Qwen2.5 14B local)",
-      "base_url": "http://127.0.0.1:8080/v1/",
+      "name": "llama.cpp (local)",
+      "base_url": "$(echo ${CRUSH_LLAMACPP_BASE_URL:-http://127.0.0.1:8080/v1/})",
       "type": "openai",
-      "disable_stream": true,
-      "startup_command": "/home/miko/LAB/dev/llama.cpp/build/bin/llama-server -m \"/home/miko/LAB/models/Qwen2.5-14B-Instruct-Q5_K_M.gguf\" -c 4096 --ubatch-size 256 -ngl 35 -t -1 --host 127.0.0.1 --port 8080",
+      "startup_command": "$(echo ${CRUSH_LLAMACPP_STARTUP_COMMAND:-})",
       "startup_timeout_seconds": 600,
       "models": [
         {
-          "name": "Qwen2.5-14B-Instruct (Q5_K_M)",
-          "id": "/home/miko/LAB/models/Qwen2.5-14B-Instruct-Q5_K_M.gguf",
+          "name": "$(echo ${CRUSH_LLAMACPP_MODEL_NAME:-Qwen2.5-14B-Instruct})",
+          "id": "$(echo ${CRUSH_LLAMACPP_MODEL_ID:-qwen2.5-14b-instruct})",
           "context_window": 32768,
           "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llamacpp-14b": {
-      "name": "llama.cpp Qwen2.5 14B (local)",
-      "base_url": "http://127.0.0.1:8080/v1/",
-      "type": "openai",
-      "disable_stream": true,
-      "models": [
-        {
-          "name": "Qwen2.5-14B-Instruct",
-          "id": "qwen2.5-14b-instruct",
-          "context_window": 32768,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llama-qwen7b": {
-      "name": "llama.cpp Qwen 7B (32k)",
-      "base_url": "http://127.0.0.1:8081/v1/",
-      "type": "openai",
-      "models": [
-        {
-          "name": "Qwen2.5-7B-Instruct",
-          "id": "qwen2.5-7b-instruct",
-          "context_window": 32768,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llama-dolphin7b": {
-      "name": "llama.cpp Dolphin 7B (uncensored, 32k)",
-      "base_url": "http://127.0.0.1:8082/v1/",
-      "type": "openai",
-      "disable_stream": true,
-      "models": [
-        {
-          "name": "dolphin-2.9.3-mistral-7B-32k",
-          "id": "dolphin-2.9.3-mistral-7b-32k",
-          "context_window": 32768,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llama-coder7b": {
-      "name": "llama.cpp Qwen Coder 7B (32k)",
-      "base_url": "http://127.0.0.1:8083/v1/",
-      "type": "openai",
-      "models": [
-        {
-          "name": "Qwen2.5-Coder-7B-Instruct",
-          "id": "qwen2.5-coder-7b-instruct",
-          "context_window": 32768,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "ollama": {
-      "name": "Ollama (OpenAI compatible)",
-      "base_url": "http://127.0.0.1:11434/v1/",
-      "type": "openai",
-      "disable_stream": true,
-      "models": [
-        {
-          "name": "Qwen2.5 Coder 7B",
-          "id": "qwen2.5-coder:7b",
-          "context_window": 8192,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llama-nous13b": {
-      "name": "llama.cpp Nous Hermes 13B Uncensored",
-      "base_url": "http://127.0.0.1:8084/v1/",
-      "type": "openai",
-      "disable_stream": true,
-      "models": [
-        {
-          "name": "Nous-Hermes Llama-2 13B Uncensored",
-          "id": "nous-hermes-13b-uncensored",
-          "context_window": 4096,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llama-airoboros13b": {
-      "name": "llama.cpp Airoboros L2 13B 2.2 Uncensored",
-      "base_url": "http://127.0.0.1:8085/v1/",
-      "type": "openai",
-      "disable_stream": true,
-      "models": [
-        {
-          "name": "Airoboros L2 13B 2.2 Uncensored",
-          "id": "airoboros-l2-13b-2.2-uncensored",
-          "context_window": 4096,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llama-wizard13b": {
-      "name": "llama.cpp WizardLM 13B Uncensored",
-      "base_url": "http://127.0.0.1:8086/v1/",
-      "type": "openai",
-      "disable_stream": true,
-      "models": [
-        {
-          "name": "WizardLM 13B Uncensored",
-          "id": "wizardlm-13b-uncensored",
-          "context_window": 4096,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llama-mythomax13b": {
-      "name": "llama.cpp MythoMax L2 13B",
-      "base_url": "http://127.0.0.1:8087/v1/",
-      "type": "openai",
-      "disable_stream": true,
-      "models": [
-        {
-          "name": "MythoMax-L2 13B",
-          "id": "mythomax-l2-13b",
-          "context_window": 4096,
-          "default_max_tokens": 1024
-        }
-      ]
-    },
-    "llamacpp-20b": {
-      "name": "llama.cpp OpenAI GPT OSS 20B",
-      "base_url": "http://127.0.0.1:8088/v1/",
-      "type": "openai",
-      "disable_stream": true,
-      "startup_command": "/home/miko/LAB/dev/llama.cpp/build/bin/llama-server -m \"/run/media/miko/AYA/ai-models/hf-home/models--DavidAU--OpenAi-GPT-oss-20b-abliterated-uncensored-NEO-Imatrix-gguf/snapshots/6e9bdcc3a8f9da44f0cdcbf4ec822b4d08decf9b/OpenAI-20B-NEO-CODEPlus-Uncensored-IQ4_NL.gguf\" -c 4096 --ubatch-size 256 -ngl 35 -t -1 --host 127.0.0.1 --port 8088",
-      "startup_timeout_seconds": 600,
-      "models": [
-        {
-          "name": "OpenAI GPT‑OSS 20B (IQ4_NL)",
-          "id": "/run/media/miko/AYA/ai-models/hf-home/models--DavidAU--OpenAi-GPT-oss-20b-abliterated-uncensored-NEO-Imatrix-gguf/snapshots/6e9bdcc3a8f9da44f0cdcbf4ec822b4d08decf9b/OpenAI-20B-NEO-CODEPlus-Uncensored-IQ4_NL.gguf",
-          "context_window": 8192,
-          "default_max_tokens": 512
-        }
-      ]
-    },
-    "openai": {
-      "name": "OpenAI",
-      "base_url": "https://api.openai.com/v1/",
-      "type": "openai",
-      "api_key": "$OPENAI_API_KEY",
-      "models": [
-        {
-          "name": "GPT-4o",
-          "id": "gpt-4o",
-          "context_window": 128000,
-          "default_max_tokens": 4096
-        }
-      ]
-    },
-    "groq": {
-      "name": "Groq",
-      "base_url": "https://api.groq.com/openai/v1/",
-      "type": "openai",
-      "disable": true,
-      "api_key": "$GROQ_API_KEY",
-      "models": [
-        {
-          "name": "Llama3-8B-8192",
-          "id": "llama3-8b-8192",
-          "context_window": 8192,
-          "default_max_tokens": 4096
-        }
-      ]
-    },
-    "together": {
-      "name": "Together AI",
-      "base_url": "https://api.together.xyz/v1/",
-      "type": "openai",
-      "disable": true,
-      "api_key": "$TOGETHER_API_KEY",
-      "models": [
-        {
-          "name": "Llama-3-70B-Instruct",
-          "id": "meta-llama/Llama-3-70B-Instruct-Turbo",
-          "context_window": 8000,
-          "default_max_tokens": 4096
-        }
-      ]
-    },
-    "fireworks": {
-      "name": "Fireworks AI",
-      "base_url": "https://api.fireworks.ai/inference/v1/",
-      "type": "openai",
-      "disable": true,
-      "api_key": "$FIREWORKS_API_KEY",
-      "models": [
-        {
-          "name": "FireLLaVa 13B",
-          "id": "accounts/fireworks/models/firellava-13b",
-          "context_window": 8192,
-          "default_max_tokens": 2048
-        }
-      ]
-    },
-    "dashscope-intl": {
-      "name": "DashScope (Intl)",
-      "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
-      "type": "openai",
-      "disable": true,
-      "api_key": "$DASHSCOPE_API_KEY",
-      "models": [
-        {
-          "name": "Qwen3 Coder Plus",
-          "id": "qwen3-coder-plus",
-          "context_window": 131072,
-          "default_max_tokens": 8192
-        }
-      ]
-    },
-    "dashscope-cn": {
-      "name": "DashScope (CN)",
-      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
-      "type": "openai",
-      "disable": true,
-      "api_key": "$DASHSCOPE_API_KEY",
-      "models": [
-        {
-          "name": "Qwen3 Coder Plus",
-          "id": "qwen3-coder-plus",
-          "context_window": 131072,
-          "default_max_tokens": 8192
-        }
-      ]
-    },
-    "modelscope-cn": {
-      "name": "ModelScope (CN)",
-      "base_url": "https://api-inference.modelscope.cn/v1/",
-      "type": "openai",
-      "api_key": "$MODELSCOPE_API_KEY",
-      "models": [
-        {
-          "name": "Qwen3 Coder 480B Instruct",
-          "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
-          "context_window": 131072,
-          "default_max_tokens": 8192
-        }
-      ]
-    },
-    "openrouter": {
-      "name": "OpenRouter",
-      "base_url": "https://openrouter.ai/api/v1/",
-      "type": "openai",
-      "disable": true,
-      "api_key": "$OPENROUTER_API_KEY",
-      "models": [
-        {
-          "name": "Qwen3 Coder (Free)",
-          "id": "qwen/qwen3-coder:free",
-          "context_window": 131072,
-          "default_max_tokens": 8192
         }
       ]
     }
   },
   "models": {
-    "large": { "model": "/run/media/miko/AYA/ai-models/hf-home/models--DavidAU--OpenAi-GPT-oss-20b-abliterated-uncensored-NEO-Imatrix-gguf/snapshots/6e9bdcc3a8f9da44f0cdcbf4ec822b4d08decf9b/OpenAI-20B-NEO-CODEPlus-Uncensored-IQ4_NL.gguf", "provider": "llamacpp-20b" },
-    "small": { "model": "openorca-7b", "provider": "vllm" }
+    "large": {
+      "provider": "$(echo ${CRUSH_DEFAULT_LARGE_PROVIDER:-llamacpp})",
+      "model": "$(echo ${CRUSH_DEFAULT_LARGE_MODEL:-qwen2.5-14b-instruct})"
+    },
+    "small": {
+      "provider": "$(echo ${CRUSH_DEFAULT_SMALL_PROVIDER:-vllm-local})",
+      "model": "$(echo ${CRUSH_DEFAULT_SMALL_MODEL:-local-model})"
+    }
   },
   "options": {
     "context_paths": [],
-    "disabled_tools": [
-      "bash",
-      "download",
-      "edit",
-      "multiedit",
-      "fetch",
-      "glob",
-      "grep",
-      "ls",
-      "sourcegraph",
-      "view",
-      "write"
-    ]
+    "disabled_tools": []
   },
   "mcp": {
-    "context7": {
-      "type": "http",
-      "url": "https://api.context7.dev/mcp/",
-      "headers": {
-        "Authorization": "$(echo Bearer $CONTEXT7_API_KEY)"
-      }
-    },
-    "github-stdio": {
+    "github": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@cyanheads/git-mcp-server"],
+      "args": [
+        "-y",
+        "@cyanheads/git-mcp-server"
+      ],
       "env": {
-        "GITHUB_TOKEN": "$(echo $GITHUB_TOKEN)",
-        "MCP_LOG_LEVEL": "info"
+        "GITHUB_TOKEN": "$(echo ${GITHUB_TOKEN:-})",
+        "MCP_LOG_LEVEL": "$(echo ${MCP_LOG_LEVEL:-info})"
       }
     }
   }

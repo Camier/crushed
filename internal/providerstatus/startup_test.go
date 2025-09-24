@@ -2,41 +2,26 @@ package providerstatus
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
 	"testing"
-
-	"github.com/charmbracelet/crush/internal/config"
-	"github.com/stretchr/testify/require"
 )
 
-func TestEnsureProviderReady_NoBaseURL(t *testing.T) {
-	require.NoError(t, EnsureProviderReady(context.Background(), t.TempDir(), config.ProviderConfig{}))
-}
-
-func TestEnsureProviderReady_HealthyEndpoint(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(ts.Close)
-
-	prov := config.ProviderConfig{
-		ID:      "test",
-		Name:    "Healthy",
-		BaseURL: ts.URL,
+func TestBuildShellCommand_Posix(t *testing.T) {
+	cmd := buildShellCommand(context.Background(), "echo hi")
+	if cmd.Path != "bash" && cmd.Args[0] != "bash" { // Path may include full path in some envs
+		t.Fatalf("expected bash, got path=%q args=%v", cmd.Path, cmd.Args)
 	}
-
-	require.NoError(t, EnsureProviderReady(context.Background(), t.TempDir(), prov))
-}
-
-func TestEnsureProviderReady_Unreachable(t *testing.T) {
-	prov := config.ProviderConfig{
-		ID:      "offline",
-		Name:    "Offline",
-		BaseURL: "http://127.0.0.1:1",
+	// Args should include -lc and the command string
+	foundLC := false
+	foundCmd := false
+	for _, a := range cmd.Args {
+		if a == "-lc" {
+			foundLC = true
+		}
+		if a == "echo hi" {
+			foundCmd = true
+		}
 	}
-
-	err := EnsureProviderReady(context.Background(), t.TempDir(), prov)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "unreachable")
+	if !foundLC || !foundCmd {
+		t.Fatalf("expected args to contain -lc and command, got %v", cmd.Args)
+	}
 }

@@ -335,6 +335,23 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 	if c.MCP == nil {
 		c.MCP = make(map[string]MCPConfig)
 	}
+	for name, mcpCfg := range c.MCP {
+		rawType := string(mcpCfg.Type)
+		switch rawType {
+		case "":
+			mcpCfg.Type = MCPStdio
+		default:
+			normalized := MCPType(strings.ToLower(rawType))
+			switch normalized {
+			case MCPStdio, MCPHttp, MCPSse:
+				mcpCfg.Type = normalized
+			default:
+				slog.Warn("invalid MCP type, defaulting to stdio", "name", name, "type", rawType)
+				mcpCfg.Type = MCPStdio
+			}
+		}
+		c.MCP[name] = mcpCfg
+	}
 	if c.LSP == nil {
 		c.LSP = make(map[string]LSPConfig)
 	}

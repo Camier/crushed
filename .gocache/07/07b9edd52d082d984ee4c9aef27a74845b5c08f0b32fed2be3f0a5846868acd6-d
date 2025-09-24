@@ -1,0 +1,5 @@
+./doc.go
+./maps.go
+./slices.go
+./maps_test.go
+./slices_test.go

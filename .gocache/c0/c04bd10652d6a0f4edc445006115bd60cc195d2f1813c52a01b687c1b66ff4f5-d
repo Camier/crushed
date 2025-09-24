@@ -1,0 +1,8 @@
+./coder.go
+./helpers.go
+./initialize.go
+./prompt.go
+./summarizer.go
+./task.go
+./title.go
+./prompt_test.go

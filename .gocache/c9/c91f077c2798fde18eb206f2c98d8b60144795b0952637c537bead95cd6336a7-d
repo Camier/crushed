@@ -1,0 +1,17 @@
+./bash.go
+./diagnostics.go
+./download.go
+./edit.go
+./fetch.go
+./file.go
+./glob.go
+./grep.go
+./kill.go
+./ls.go
+./multiedit.go
+./rg.go
+./safe.go
+./sourcegraph.go
+./tools.go
+./view.go
+./write.go

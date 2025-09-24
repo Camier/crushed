@@ -23,30 +23,73 @@ const (
 	defaultDataDirectory = ".crush"
 )
 
-var defaultContextPaths = []string{
+var defaultContextPaths = append([]string{
 	".github/copilot-instructions.md",
 	".cursorrules",
 	".cursor/rules/",
 	".qwen/QWEN.md",
-	"CLAUDE.md",
-	"CLAUDE.local.md",
-	"GEMINI.md",
+}, contextNameVariants(
+	"claude.md",
+	"claude.local.md",
 	"gemini.md",
+	"gemini.local.md",
 	"crush.md",
 	"crush.local.md",
-	"Crush.md",
-	"Crush.local.md",
-	"CRUSH.md",
-	"CRUSH.local.md",
-	"AGENTS.md",
 	"agents.md",
-	"Agents.md",
-}
+)...)
 
 var defaultLSPIgnorePaths = []string{
 	".crush/logs",
 	".crush/tmp",
 	".local/share/containers",
+}
+
+func contextNameVariants(names ...string) []string {
+	variants := make([]string, 0, len(names)*3)
+	seen := make(map[string]struct{})
+	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		dir, file := filepath.Split(name)
+		if file == "" {
+			candidate := dir
+			if _, ok := seen[candidate]; !ok {
+				seen[candidate] = struct{}{}
+				variants = append(variants, candidate)
+			}
+			continue
+		}
+		base, suffix := splitBaseAndSuffix(file)
+		if base == "" {
+			candidate := dir + file
+			if _, ok := seen[candidate]; !ok {
+				seen[candidate] = struct{}{}
+				variants = append(variants, candidate)
+			}
+			continue
+		}
+		for _, variantBase := range []string{
+			strings.ToLower(base),
+			strings.ToUpper(base),
+			strings.ToUpper(base[:1]) + strings.ToLower(base[1:]),
+		} {
+			candidate := dir + variantBase + suffix
+			if _, ok := seen[candidate]; !ok {
+				seen[candidate] = struct{}{}
+				variants = append(variants, candidate)
+			}
+		}
+	}
+	return variants
+}
+
+func splitBaseAndSuffix(name string) (string, string) {
+	idx := strings.Index(name, ".")
+	if idx == -1 {
+		return name, ""
+	}
+	return name[:idx], name[idx:]
 }
 
 type SelectedModelType string
@@ -123,12 +166,11 @@ type MCPConfig struct {
 	Command  string            `json:"command,omitempty" jsonschema:"description=Command to execute for stdio MCP servers,example=npx"`
 	Env      map[string]string `json:"env,omitempty" jsonschema:"description=Environment variables to set for the MCP server"`
 	Args     []string          `json:"args,omitempty" jsonschema:"description=Arguments to pass to the MCP server command"`
-	Type     MCPType           `json:"type" jsonschema:"required,description=Type of MCP connection,enum=stdio,enum=sse,enum=http,default=stdio"`
+	Type     MCPType           `json:"type,omitempty" jsonschema:"description=Type of MCP connection,enum=stdio,enum=sse,enum=http,default=stdio"`
 	URL      string            `json:"url,omitempty" jsonschema:"description=URL for HTTP or SSE MCP servers,format=uri,example=http://localhost:3000/mcp"`
 	Disabled bool              `json:"disabled,omitempty" jsonschema:"description=Whether this MCP server is disabled,default=false"`
 	Timeout  int               `json:"timeout,omitempty" jsonschema:"description=Timeout in seconds for MCP server connections,default=15,example=30,example=60,example=120"`
 
-	// TODO: maybe make it possible to get the value from the env
 	Headers map[string]string `json:"headers,omitempty" jsonschema:"description=HTTP headers for HTTP/SSE MCP servers"`
 }
 

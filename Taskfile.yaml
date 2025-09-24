@@ -74,17 +74,73 @@ tasks:
     env:
       GOTOOLCHAIN: go1.25.0
 
+  bootstrap:
+    desc: Install common development tooling
+    deps:
+      - lint:install
+      - fmt:install
+
   build:
     desc: Run build
     cmds:
-      - go build .
+      - mkdir -p bin
+      - go build -o bin/crush .
     generates:
-      - crush
+      - bin/crush
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf bin
+      - rm -rf dist
+
+  build:release:
+    desc: Build release artifacts with Goreleaser (snapshot)
+    cmds:
+      - goreleaser build --snapshot --clean
 
   test:
     desc: Run tests
     cmds:
       - go test ./... {{.CLI_ARGS}}
+
+  test:update:
+    desc: Update golden snapshots
+    cmds:
+      - |
+          set -euo pipefail
+          # Find packages that import golden and update only those
+          PKG_DIRS=$(rg -l --hidden --no-messages 'github.com/charmbracelet/x/exp/golden' | xargs -r -n1 dirname | sort -u)
+          if [ -z "${PKG_DIRS:-}" ]; then
+            echo "No golden-using packages found" >&2
+            exit 0
+          fi
+          for d in $PKG_DIRS; do
+            echo "Updating goldens in $d" >&2
+            ( cd "$d" && go test -update {{.CLI_ARGS}} )
+          done
+
+  test:update:chat:
+    desc: Update chat page golden snapshots
+    cmds:
+      - go test ./internal/tui/page/chat -run TestChatPage -update {{.CLI_ARGS}}
+
+  test:update:splash:
+    desc: Update splash golden snapshots
+    cmds:
+      - go test ./internal/tui/components/chat/splash -update {{.CLI_ARGS}}
+
+  test:update:header:
+    desc: Update header golden snapshots
+    cmds:
+      - go test ./internal/tui/components/chat/header -update {{.CLI_ARGS}}
+
+  test:race:
+    desc: Run tests with the race detector
+    env:
+      CGO_ENABLED: 1
+    cmds:
+      - go test -race ./internal/tui/page/chat ./internal/tui/components/chat/editor ./internal/fsext ./internal/tui/exp/list {{.CLI_ARGS}}
 
   fmt:
     desc: Run gofumpt

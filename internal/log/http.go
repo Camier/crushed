@@ -13,7 +13,15 @@ import (
 
 // NewHTTPClient creates an HTTP client with debug logging enabled when debug mode is on.
 func NewHTTPClient() *http.Client {
-	if !slog.Default().Enabled(context.TODO(), slog.LevelDebug) {
+	return NewHTTPClientWithContext(context.Background())
+}
+
+// NewHTTPClientWithContext allows callers to control the logging context used for slog checks.
+func NewHTTPClientWithContext(ctx context.Context) *http.Client {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !slog.Default().Enabled(ctx, slog.LevelDebug) {
 		return http.DefaultClient
 	}
 	return &http.Client{

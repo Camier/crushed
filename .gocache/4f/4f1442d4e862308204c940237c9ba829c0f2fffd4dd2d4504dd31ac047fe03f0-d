@@ -1,0 +1,12 @@
+./config.go
+./init.go
+./load.go
+./merge.go
+./provider.go
+./resolve.go
+./config_model_test.go
+./load_test.go
+./merge_test.go
+./provider_empty_test.go
+./provider_test.go
+./resolve_test.go

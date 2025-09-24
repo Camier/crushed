@@ -1,0 +1,9 @@
+./colors.go
+./convolution.go
+./effects.go
+./gift.go
+./pixels.go
+./rank.go
+./resize.go
+./transform.go
+./utils.go

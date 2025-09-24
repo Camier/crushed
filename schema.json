@@ -16,10 +16,7 @@
           "description": "Model configurations for different model types"
         },
         "providers": {
-          "additionalProperties": {
-            "$ref": "#/$defs/ProviderConfig"
-          },
-          "type": "object",
+          "$ref": "#/$defs/Map[string,github.com/charmbracelet/crush/internal/config.ProviderConfig]",
           "description": "AI provider configurations"
         },
         "mcp": {
@@ -166,10 +163,7 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "type"
-      ]
+      "type": "object"
     },
     "MCPs": {
       "additionalProperties": {
@@ -177,60 +171,10 @@
       },
       "type": "object"
     },
-    "Model": {
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "cost_per_1m_in": {
-          "type": "number"
-        },
-        "cost_per_1m_out": {
-          "type": "number"
-        },
-        "cost_per_1m_in_cached": {
-          "type": "number"
-        },
-        "cost_per_1m_out_cached": {
-          "type": "number"
-        },
-        "context_window": {
-          "type": "integer"
-        },
-        "default_max_tokens": {
-          "type": "integer"
-        },
-        "can_reason": {
-          "type": "boolean"
-        },
-        "has_reasoning_efforts": {
-          "type": "boolean"
-        },
-        "default_reasoning_effort": {
-          "type": "string"
-        },
-        "supports_attachments": {
-          "type": "boolean"
-        }
-      },
+    "Map[string,github.com/charmbracelet/crush/internal/config.ProviderConfig]": {
+      "properties": {},
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "id",
-        "name",
-        "cost_per_1m_in",
-        "cost_per_1m_out",
-        "cost_per_1m_in_cached",
-        "cost_per_1m_out_cached",
-        "context_window",
-        "default_max_tokens",
-        "can_reason",
-        "has_reasoning_efforts",
-        "supports_attachments"
-      ]
+      "type": "object"
     },
     "Options": {
       "properties": {
@@ -315,99 +259,6 @@
           },
           "type": "array",
           "description": "List of tools that don't require permission prompts"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "ProviderConfig": {
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the provider",
-          "examples": [
-            "openai"
-          ]
-        },
-        "name": {
-          "type": "string",
-          "description": "Human-readable name for the provider",
-          "examples": [
-            "OpenAI"
-          ]
-        },
-        "base_url": {
-          "type": "string",
-          "format": "uri",
-          "description": "Base URL for the provider's API",
-          "examples": [
-            "https://api.openai.com/v1"
-          ]
-        },
-        "type": {
-          "type": "string",
-          "enum": [
-            "openai",
-            "anthropic",
-            "gemini",
-            "azure",
-            "vertexai"
-          ],
-          "description": "Provider type that determines the API format",
-          "default": "openai"
-        },
-        "api_key": {
-          "type": "string",
-          "description": "API key for authentication with the provider",
-          "examples": [
-            "$OPENAI_API_KEY"
-          ]
-        },
-        "disable": {
-          "type": "boolean",
-          "description": "Whether this provider is disabled",
-          "default": false
-        },
-        "disable_stream": {
-          "type": "boolean",
-          "description": "Disable streaming responses for this provider",
-          "default": false
-        },
-        "startup_command": {
-          "type": "string",
-          "description": "Shell command to run when the provider is selected to ensure the service is running"
-        },
-        "startup_timeout_seconds": {
-          "type": "integer",
-          "description": "How long to wait (seconds) for the startup command to make the provider ready",
-          "default": 60
-        },
-        "startup_health_path": {
-          "type": "string",
-          "description": "Relative path appended to the base URL to check readiness",
-          "default": "/models"
-        },
-        "system_prompt_prefix": {
-          "type": "string",
-          "description": "Custom prefix to add to system prompts for this provider"
-        },
-        "extra_headers": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object",
-          "description": "Additional HTTP headers to send with requests"
-        },
-        "extra_body": {
-          "type": "object",
-          "description": "Additional fields to include in request bodies"
-        },
-        "models": {
-          "items": {
-            "$ref": "#/$defs/Model"
-          },
-          "type": "array",
-          "description": "List of models available from this provider"
         }
       },
       "additionalProperties": false,

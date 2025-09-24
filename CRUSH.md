@@ -2,7 +2,7 @@
 
 ## Build/Test/Lint Commands
 
-- **Build**: `go build .` or `go run .`
+- **Build**: `go build -o bin/crush .` or `go run .` (keeps the repo-level `crush` symlink untouched)
 - **Test**: `task test` or `go test ./...` (run single test: `go test ./internal/llm/prompt -run TestGetContextFromPaths`)
 - **Update Golden Files**: `go test ./... -update` (regenerates .golden files when test output changes)
   - Update specific package: `go test ./internal/tui/components/core -update` (in this case, we're updating "core")

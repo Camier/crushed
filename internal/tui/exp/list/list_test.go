@@ -14,10 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:tparallel,paralleltest // uses global theme/state; run serially to avoid races under -race
 func TestList(t *testing.T) {
-	t.Parallel()
 	t.Run("should have correct positions in list that fits the items", func(t *testing.T) {
-		t.Parallel()
 		items := []Item{}
 		for i := range 5 {
 			item := NewSelectableItem(fmt.Sprintf("Item %d", i))
@@ -47,7 +46,6 @@ func TestList(t *testing.T) {
 		golden.RequireEqual(t, []byte(l.View()))
 	})
 	t.Run("should have correct positions in list that fits the items backwards", func(t *testing.T) {
-		t.Parallel()
 		items := []Item{}
 		for i := range 5 {
 			item := NewSelectableItem(fmt.Sprintf("Item %d", i))
@@ -139,7 +137,6 @@ func TestList(t *testing.T) {
 	})
 
 	t.Run("should have correct positions in list that does not fits the items and has multi line items", func(t *testing.T) {
-		t.Parallel()
 		items := []Item{}
 		for i := range 30 {
 			content := strings.Repeat(fmt.Sprintf("Item %d\n", i), i+1)
@@ -177,7 +174,6 @@ func TestList(t *testing.T) {
 		golden.RequireEqual(t, []byte(l.View()))
 	})
 	t.Run("should have correct positions in list that does not fits the items and has multi line items backwards", func(t *testing.T) {
-		t.Parallel()
 		items := []Item{}
 		for i := range 30 {
 			content := strings.Repeat(fmt.Sprintf("Item %d\n", i), i+1)
@@ -216,7 +212,6 @@ func TestList(t *testing.T) {
 	})
 
 	t.Run("should go to selected item at the beginning", func(t *testing.T) {
-		t.Parallel()
 		items := []Item{}
 		for i := range 30 {
 			content := strings.Repeat(fmt.Sprintf("Item %d\n", i), i+1)
@@ -234,7 +229,6 @@ func TestList(t *testing.T) {
 	})
 
 	t.Run("should go to selected item at the beginning backwards", func(t *testing.T) {
-		t.Parallel()
 		items := []Item{}
 		for i := range 30 {
 			content := strings.Repeat(fmt.Sprintf("Item %d\n", i), i+1)

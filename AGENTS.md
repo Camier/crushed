@@ -8,12 +8,15 @@
 
 ## Build, Test, and Development Commands
 - Prereq: install task: `go install github.com/go-task/task/v3/cmd/task@latest`.
-- `task build` — build the `crush` binary (equivalent to `go build .`).
+- `task bootstrap` — install lint/format tooling (wraps `lint:install` and `fmt:install`).
+- `task build` — build the `crush` binary into `./bin/crush`.
+- `task clean` — remove `bin/` and `dist/` artifacts.
 - `task dev` — run locally with profiling flags (`go run .`).
 - `task test [ARGS]` — run tests (`go test ./...`).
 - `task lint` / `task lint-fix` — run golangci‑lint (uses `.golangci.yml`) (install via `task lint:install`).
 - `task fmt` — format with `gofumpt`.
 - `task install` — install binary.
+- `task build:release` — run `goreleaser build --snapshot` for local packaging.
 - `task schema` — generate `schema.json`.
 - CI: GitHub Actions runs build + lint on PRs; releases via GoReleaser.
 
