@@ -1,8 +1,0 @@
-./client.go
-./http.go
-./inprocess.go
-./interface.go
-./oauth.go
-./sampling.go
-./sse.go
-./stdio.go

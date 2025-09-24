@@ -1,4 +1,0 @@
-./app.go
-./lsp.go
-./lsp_events.go
-./provider_status.go

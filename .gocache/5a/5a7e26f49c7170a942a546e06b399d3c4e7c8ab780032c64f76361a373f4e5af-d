@@ -1,6 +1,0 @@
-./adapters.go
-./dirent.go
-./dirent_unix.go
-./entry_filter_unix.go
-./fastwalk.go
-./fastwalk_unix.go

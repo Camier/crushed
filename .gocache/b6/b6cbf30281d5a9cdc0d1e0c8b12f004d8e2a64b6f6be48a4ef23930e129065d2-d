@@ -1,4 +1,0 @@
-./dirent.go
-./dirent_linux.go
-./doc.go
-./endian_little.go

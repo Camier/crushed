@@ -1,7 +1,0 @@
-./caps.go
-./client.go
-./handlers.go
-./language.go
-./methods.go
-./protocol.go
-./transport.go

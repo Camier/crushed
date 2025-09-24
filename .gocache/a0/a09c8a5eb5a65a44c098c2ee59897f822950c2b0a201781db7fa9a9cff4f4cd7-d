@@ -1,8 +1,0 @@
-./connect.go
-./db.go
-./embed.go
-./files.sql.go
-./messages.sql.go
-./models.go
-./querier.go
-./sessions.sql.go

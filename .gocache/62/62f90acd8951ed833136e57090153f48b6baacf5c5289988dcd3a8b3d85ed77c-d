@@ -1,9 +1,0 @@
-./constants.go
-./error.go
-./inprocess.go
-./interface.go
-./oauth.go
-./oauth_utils.go
-./sse.go
-./stdio.go
-./streamable_http.go
