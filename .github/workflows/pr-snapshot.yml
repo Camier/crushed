@@ -1,0 +1,47 @@
+name: PR Snapshot
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches:
+      - feat/**
+      - feature/**
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: Install task
+        run: go install github.com/go-task/task/v3/cmd/task@latest
+
+      - name: Bootstrap tools
+        run: task bootstrap
+
+      - name: Lint
+        run: task lint
+
+      - name: Test
+        env:
+          CRUSH_DISABLE_PROVIDER_AUTO_UPDATE: '1'
+        run: task test
+
+      - name: Build snapshot tarballs (linux/darwin, amd64/arm64)
+        run: bash scripts/build-snapshot.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crush-snapshots-${{ github.sha }}
+          path: |
+            dist/crush_*.tar.gz
+            dist/SHASUMS256.txt

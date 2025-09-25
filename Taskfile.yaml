@@ -99,6 +99,11 @@ tasks:
     cmds:
       - goreleaser build --snapshot --clean
 
+  build:snapshot:min:
+    desc: Build minimal cross-platform tarballs (Linux/macOS, amd64/arm64)
+    cmds:
+      - scripts/build-snapshot.sh
+
   test:
     desc: Run tests
     cmds:
