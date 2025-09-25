@@ -207,3 +207,8 @@ tasks:
       - echo "Generated schema.json"
     generates:
       - schema.json
+
+  pass:bootstrap:
+    desc: Populate pass entries used by Crush (.crush.json)
+    cmds:
+      - scripts/pass-bootstrap.sh {{.CLI_ARGS}}
