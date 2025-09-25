@@ -257,6 +257,20 @@ Use these commands to select models and ensure providers are ready.
 
 Tip: if a local provider needs bootstrapping, set a `startup_command` on the provider or run a helper (e.g., `scripts/lmstudio-start.sh`, `scripts/vllm-openorca.sh`).
 
+### User Config via pass (optional)
+
+Keep project config env‑only, and use your user config to resolve secrets via pass. Create or edit:
+- `$XDG_CONFIG_HOME/crush/crush.json` (recommended), or
+- `$HOME/.config/crush/crush.json`
+
+Example (with pass resolution): see `docs/examples/user-config.pass.json`.
+
+Populate secrets safely:
+- `task pass:bootstrap` (guided inserts)
+- `task pass:consolidate -- --dry-run` (see what would change)
+
+Environment fallback works too; any missing pass entries fall back to env vars like `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
+
 ### LSPs
 
 Crush can use LSPs for additional context to help inform its decisions, just
