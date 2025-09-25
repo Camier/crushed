@@ -62,6 +62,30 @@ func TestConfig_setDefaults(t *testing.T) {
 	require.Equal(t, "/tmp", cfg.workingDir)
 }
 
+func TestConfig_setDefaultsNormalizesMCPType(t *testing.T) {
+	cfg := &Config{
+		MCP: map[string]MCPConfig{
+			"default": {},
+			"explicit": {
+				Type: MCPHttp,
+			},
+			"uppercase": {
+				Type: MCPType("SSE"),
+			},
+			"invalid": {
+				Type: MCPType("custom"),
+			},
+		},
+	}
+
+	cfg.setDefaults("/tmp", "")
+
+	require.Equal(t, MCPStdio, cfg.MCP["default"].Type)
+	require.Equal(t, MCPHttp, cfg.MCP["explicit"].Type)
+	require.Equal(t, MCPSse, cfg.MCP["uppercase"].Type)
+	require.Equal(t, MCPStdio, cfg.MCP["invalid"].Type)
+}
+
 func TestConfig_configureProviders(t *testing.T) {
 	knownProviders := []catwalk.Provider{
 		{

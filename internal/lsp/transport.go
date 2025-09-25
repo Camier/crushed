@@ -20,7 +20,7 @@ func WriteMessage(w io.Writer, msg *Message) error {
 	}
 	cfg := config.Get()
 
-	if cfg.Options.DebugLSP {
+	if cfg != nil && cfg.Options != nil && cfg.Options.DebugLSP {
 		slog.Debug("Sending message to server", "method", msg.Method, "id", msg.ID)
 	}
 
@@ -49,7 +49,7 @@ func ReadMessage(r *bufio.Reader) (*Message, error) {
 		}
 		line = strings.TrimSpace(line)
 
-		if cfg.Options.DebugLSP {
+		if cfg != nil && cfg.Options != nil && cfg.Options.DebugLSP {
 			slog.Debug("Received header", "line", line)
 		}
 
@@ -65,7 +65,7 @@ func ReadMessage(r *bufio.Reader) (*Message, error) {
 		}
 	}
 
-	if cfg.Options.DebugLSP {
+	if cfg != nil && cfg.Options != nil && cfg.Options.DebugLSP {
 		slog.Debug("Content-Length", "length", contentLength)
 	}
 
@@ -76,7 +76,7 @@ func ReadMessage(r *bufio.Reader) (*Message, error) {
 		return nil, fmt.Errorf("failed to read content: %w", err)
 	}
 
-	if cfg.Options.DebugLSP {
+	if cfg != nil && cfg.Options != nil && cfg.Options.DebugLSP {
 		slog.Debug("Received content", "content", string(content))
 	}
 
@@ -194,7 +194,7 @@ func (c *Client) Call(ctx context.Context, method string, params any, result any
 	id := c.nextID.Add(1)
 
 	cfg := config.Get()
-	if cfg.Options.DebugLSP {
+	if cfg != nil && cfg.Options != nil && cfg.Options.DebugLSP {
 		slog.Debug("Making call", "method", method, "id", id)
 	}
 
@@ -220,16 +220,18 @@ func (c *Client) Call(ctx context.Context, method string, params any, result any
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 
-	if cfg.Options.DebugLSP {
+	if cfg != nil && cfg.Options != nil && cfg.Options.DebugLSP {
 		slog.Debug("Request sent", "method", method, "id", id)
 	}
 
-	// Wait for response
+	// Wait for response or cancellation
 	select {
 	case <-ctx.Done():
+		// Best-effort cancel request per LSP/JSON-RPC "$/cancelRequest"
+		_ = c.sendCancel(id)
 		return ctx.Err()
 	case resp := <-ch:
-		if cfg.Options.DebugLSP {
+		if cfg != nil && cfg.Options != nil && cfg.Options.DebugLSP {
 			slog.Debug("Received response", "id", id)
 		}
 
@@ -251,6 +253,23 @@ func (c *Client) Call(ctx context.Context, method string, params any, result any
 
 		return nil
 	}
+}
+
+// sendCancel sends a best-effort $/cancelRequest notification to the server.
+// See: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#cancelRequest
+func (c *Client) sendCancel(id int32) error {
+	// Build params: { "id": id }
+	payload := map[string]any{"id": id}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	msg := &Message{
+		JSONRPC: "2.0",
+		Method:  "$/cancelRequest",
+		Params:  raw,
+	}
+	return WriteMessage(c.stdin, msg)
 }
 
 // Notify sends a notification (a request without an ID that doesn't expect a response)

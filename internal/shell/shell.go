@@ -1,13 +1,8 @@
-// Package shell provides cross-platform shell execution capabilities.
+// Package shell provides portable shell execution capabilities.
 //
 // This package offers two main types:
 // - Shell: A general-purpose shell executor for one-off or managed commands
 // - PersistentShell: A singleton shell that maintains state across the application
-//
-// WINDOWS COMPATIBILITY:
-// This implementation provides both POSIX shell emulation (mvdan.cc/sh/v3),
-// even on Windows. Some caution has to be taken: commands should have forward
-// slashes (/) as path separators to work, even on Windows.
 package shell
 
 import (

@@ -126,6 +126,14 @@ func (app *App) Config() *config.Config {
 	return app.config
 }
 
+// Context exposes the application's root context; falls back to context.Background().
+func (app *App) Context() context.Context {
+	if app == nil || app.globalCtx == nil {
+		return context.Background()
+	}
+	return app.globalCtx
+}
+
 // RunNonInteractive handles the execution flow when a prompt is provided via
 // CLI flag.
 func (app *App) RunNonInteractive(ctx context.Context, prompt string, quiet bool) error {

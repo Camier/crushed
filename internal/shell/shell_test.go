@@ -3,7 +3,6 @@ package shell
 import (
 	"context"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -25,11 +24,6 @@ func BenchmarkShellQuickCommands(b *testing.B) {
 }
 
 func TestTestTimeout(t *testing.T) {
-	// XXX(@andreynering): This fails on Windows. Address once possible.
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows")
-	}
-
 	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond)
 	t.Cleanup(cancel)
 

@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"unicode"
@@ -16,7 +15,6 @@ import (
 	"github.com/charmbracelet/bubbles/v2/key"
 	"github.com/charmbracelet/bubbles/v2/textarea"
 	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/crush/internal/app"
 	"github.com/charmbracelet/crush/internal/fsext"
 	"github.com/charmbracelet/crush/internal/message"
 	"github.com/charmbracelet/crush/internal/session"
@@ -30,6 +28,7 @@ import (
 	"github.com/charmbracelet/crush/internal/tui/styles"
 	"github.com/charmbracelet/crush/internal/tui/util"
 	"github.com/charmbracelet/lipgloss/v2"
+	"mvdan.cc/sh/v3/shell"
 )
 
 type Editor interface {
@@ -53,7 +52,6 @@ type editorCmp struct {
 	width              int
 	height             int
 	x, y               int
-	app                *app.App
 	session            session.Session
 	textarea           *textarea.Model
 	attachments        []message.Attachment
@@ -67,6 +65,14 @@ type editorCmp struct {
 	currentQuery          string
 	completionsStartIndex int
 	isCompletionsOpen     bool
+
+	agent       AgentStatus
+	permissions PermissionStatus
+	getContext  ContextFunc
+
+	// process/command injection for testability
+	exec       ProcessExecutor
+	cmdFactory CommandFactory
 }
 
 var DeleteKeyMaps = DeleteAttachmentKeyMaps{
@@ -93,43 +99,66 @@ type OpenEditorMsg struct {
 }
 
 func (m *editorCmp) openEditor(value string) tea.Cmd {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		// Use platform-appropriate default editor
-		if runtime.GOOS == "windows" {
-			editor = "notepad"
-		} else {
-			editor = "nvim"
-		}
+	editorCmd := os.Getenv("VISUAL")
+	if editorCmd == "" {
+		editorCmd = os.Getenv("EDITOR")
+	}
+	if editorCmd == "" {
+		editorCmd = "nvim"
+	}
+
+	editorArgs, err := shell.Fields(editorCmd, nil)
+	if err != nil || len(editorArgs) == 0 {
+		editorArgs = strings.Fields(editorCmd)
+	}
+	if len(editorArgs) == 0 {
+		return util.ReportError(fmt.Errorf("no editor command configured"))
 	}
 
 	tmpfile, err := os.CreateTemp("", "msg_*.md")
 	if err != nil {
 		return util.ReportError(err)
 	}
-	defer tmpfile.Close() //nolint:errcheck
+
+	tmpPath := tmpfile.Name()
 	if _, err := tmpfile.WriteString(value); err != nil {
+		tmpfile.Close() //nolint:errcheck
 		return util.ReportError(err)
 	}
-	c := exec.CommandContext(context.TODO(), editor, tmpfile.Name())
-	c.Stdin = os.Stdin
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	return tea.ExecProcess(c, func(err error) tea.Msg {
-		if err != nil {
-			return util.ReportError(err)
+	if err := tmpfile.Close(); err != nil {
+		return util.ReportError(err)
+	}
+
+	editorArgs = append(editorArgs, tmpPath)
+
+	ctx := context.Background()
+	if m != nil && m.getContext != nil {
+		if c := m.getContext(); c != nil {
+			ctx = c
 		}
-		content, err := os.ReadFile(tmpfile.Name())
-		if err != nil {
-			return util.ReportError(err)
+	}
+
+	cmd := m.cmdFactory.New(ctx, editorArgs[0], editorArgs[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return m.exec.Exec(cmd, func(procErr error) tea.Msg {
+		defer func() {
+			_ = os.Remove(tmpPath)
+		}()
+		if procErr != nil {
+			return util.ReportError(procErr)
 		}
-		if len(content) == 0 {
+		content, readErr := os.ReadFile(tmpPath)
+		if readErr != nil {
+			return util.ReportError(readErr)
+		}
+		trimmed := strings.TrimSpace(string(content))
+		if trimmed == "" {
 			return util.ReportWarn("Message is empty")
 		}
-		os.Remove(tmpfile.Name())
-		return OpenEditorMsg{
-			Text: strings.TrimSpace(string(content)),
-		}
+		return OpenEditorMsg{Text: trimmed}
 	})
 }
 
@@ -211,7 +240,7 @@ func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case commands.OpenExternalEditorMsg:
-		if m.app.CoderAgent.IsSessionBusy(m.session.ID) {
+		if m.agent != nil && m.agent.IsSessionBusy(m.session.ID) {
 			return m, util.ReportWarn("Agent is working, please wait...")
 		}
 		return m, m.openEditor(m.textarea.Value())
@@ -297,7 +326,7 @@ func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if key.Matches(msg, m.keyMap.OpenEditor) {
-			if m.app.CoderAgent.IsSessionBusy(m.session.ID) {
+			if m.agent != nil && m.agent.IsSessionBusy(m.session.ID) {
 				return m, util.ReportWarn("Agent is working, please wait...")
 			}
 			return m, m.openEditor(m.textarea.Value())
@@ -365,7 +394,7 @@ func (m *editorCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *editorCmp) setEditorPrompt() {
-	if m.app.Permissions.SkipRequests() {
+	if m.permissions != nil && m.permissions.SkipRequests() {
 		m.textarea.SetPromptFunc(4, yoloPromptFunc)
 		return
 	}
@@ -415,12 +444,20 @@ func (m *editorCmp) randomizePlaceholders() {
 func (m *editorCmp) View() string {
 	t := styles.CurrentTheme()
 	// Update placeholder
-	if m.app.CoderAgent != nil && m.app.CoderAgent.IsBusy() {
+	busy := false
+	if m.agent != nil {
+		if m.session.ID != "" && m.agent.IsSessionBusy(m.session.ID) {
+			busy = true
+		} else if m.agent.IsBusy() {
+			busy = true
+		}
+	}
+	if busy {
 		m.textarea.Placeholder = m.workingPlaceholder
 	} else {
 		m.textarea.Placeholder = m.readyPlaceholder
 	}
-	if m.app.Permissions.SkipRequests() {
+	if m.permissions != nil && m.permissions.SkipRequests() {
 		m.textarea.Placeholder = "Yolo mode!"
 	}
 	if len(m.attachments) == 0 {
@@ -522,8 +559,6 @@ func (c *editorCmp) Bindings() []key.Binding {
 	return c.keyMap.KeyBindings()
 }
 
-// TODO: most likely we do not need to have the session here
-// we need to move some functionality to the page level
 func (c *editorCmp) SetSession(session session.Session) tea.Cmd {
 	c.session = session
 	return nil
@@ -563,7 +598,26 @@ func yoloPromptFunc(info textarea.PromptInfo) string {
 	return fmt.Sprintf("%s ", t.YoloDotsBlurred)
 }
 
-func New(app *app.App) Editor {
+type ContextFunc func() context.Context
+
+type AgentStatus interface {
+	IsSessionBusy(sessionID string) bool
+	IsBusy() bool
+}
+
+type PermissionStatus interface {
+	SkipRequests() bool
+}
+
+type Dependencies struct {
+	Agent       AgentStatus
+	Permissions PermissionStatus
+	Context     ContextFunc
+	Exec        ProcessExecutor
+	Command     CommandFactory
+}
+
+func New(deps Dependencies) Editor {
 	t := styles.CurrentTheme()
 	ta := textarea.New()
 	ta.SetStyles(t.S().TextArea)
@@ -572,15 +626,62 @@ func New(app *app.App) Editor {
 	ta.SetVirtualCursor(false)
 	ta.Focus()
 	e := &editorCmp{
-		// TODO: remove the app instance from here
-		app:      app,
-		textarea: ta,
-		keyMap:   DefaultEditorKeyMap(),
+		agent:       deps.Agent,
+		permissions: deps.Permissions,
+		getContext:  deps.Context,
+		textarea:    ta,
+		keyMap:      DefaultEditorKeyMap(),
+	}
+	if deps.Exec != nil {
+		e.exec = deps.Exec
+	}
+	if deps.Command != nil {
+		e.cmdFactory = deps.Command
+	}
+	if e.getContext == nil {
+		e.getContext = func() context.Context { return context.Background() }
+	}
+	if e.exec == nil {
+		e.exec = defaultExecutor{}
+	}
+	if e.cmdFactory == nil {
+		e.cmdFactory = defaultCommandFactory{}
 	}
 	e.setEditorPrompt()
 
-	e.randomizePlaceholders()
+	// Use deterministic initial placeholders; randomize later on send events
+	e.readyPlaceholder = readyPlaceholders[0]
+	e.workingPlaceholder = workingPlaceholders[0]
 	e.textarea.Placeholder = e.readyPlaceholder
 
 	return e
+}
+
+// ProcessExecutor abstracts tea.ExecProcess for testability.
+type ProcessExecutor interface {
+	Exec(cmd *exec.Cmd, done func(error) tea.Msg) tea.Cmd
+}
+
+type defaultExecutor struct{}
+
+func (defaultExecutor) Exec(cmd *exec.Cmd, done func(error) tea.Msg) tea.Cmd {
+	return tea.ExecProcess(cmd, done)
+}
+
+// CommandFactory abstracts exec.CommandContext creation.
+type CommandFactory interface {
+	New(ctx context.Context, name string, args ...string) *exec.Cmd
+}
+
+type defaultCommandFactory struct{}
+
+func (defaultCommandFactory) New(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, name, args...)
+}
+
+// ProcessExecutorFunc adapts a function to ProcessExecutor.
+type ProcessExecutorFunc func(cmd *exec.Cmd, done func(error) tea.Msg) tea.Cmd
+
+func (f ProcessExecutorFunc) Exec(cmd *exec.Cmd, done func(error) tea.Msg) tea.Cmd {
+	return f(cmd, done)
 }

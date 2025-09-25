@@ -17,7 +17,7 @@
 - **Session-Based:** maintain multiple work sessions and contexts per project
 - **LSP-Enhanced:** Crush uses LSPs for additional context, just like you do
 - **Extensible:** add capabilities via MCPs (`http`, `stdio`, and `sse`)
-- **Works Everywhere:** first-class support in every terminal on macOS, Linux, Windows (PowerShell and WSL), FreeBSD, OpenBSD, and NetBSD
+- **Works Everywhere:** first-class support in every terminal on macOS, Linux, FreeBSD, OpenBSD, and NetBSD
 
 ## Installation
 
@@ -37,16 +37,7 @@ yay -S crush-bin
 nix run github:numtide/nix-ai-tools#crush
 ```
 
-Windows users:
 
-```bash
-# Winget
-winget install charmbracelet.crush
-
-# Scoop
-scoop bucket add charm https://github.com/charmbracelet/scoop-bucket.git
-scoop install crush
-```
 
 <details>
 <summary><strong>Nix (NUR)</strong></summary>
@@ -96,7 +87,7 @@ sudo yum install crush
 Or, download it:
 
 - [Packages][releases] are available in Debian and RPM formats
-- [Binaries][releases] are available for Linux, macOS, Windows, FreeBSD, OpenBSD, and NetBSD
+- [Binaries][releases] are available for Linux, macOS, FreeBSD, OpenBSD, and NetBSD
 
 [releases]: https://github.com/charmbracelet/crush/releases
 
@@ -152,7 +143,7 @@ or globally, with the following priority:
 
 1. `.crush.json`
 2. `crush.json`
-3. `$HOME/.config/crush/crush.json` (Windows: `%USERPROFILE%\AppData\Local\crush\crush.json`)
+3. `$HOME/.config/crush/crush.json`
 
 Configuration itself is stored as a JSON object:
 
@@ -163,17 +154,63 @@ Configuration itself is stored as a JSON object:
 }
 ```
 
+Keys may expand environment variables or shell substitutions using the form `$(...)` or `$VAR`. For
+example, the snippet below keeps a provider URL in sync with `CRUSH_VLLM_BASE_URL`:
+
+```json
+{
+  "providers": {
+    "vllm-local": {
+      "base_url": "$(echo ${CRUSH_VLLM_BASE_URL:-http://127.0.0.1:8000/v1/})"
+    }
+  }
+}
+```
+
+You can validate the current schema with `crush schema` and refresh provider metadata via
+`crush update-providers` whenever Catwalk publishes updates.
+
 As an additional note, Crush also stores mutable application state alongside your user configuration:
 
 ```bash
-# Unix
 $HOME/.config/crush/crush.state.json
-
-# Windows
-%LOCALAPPDATA%\crush\crush.state.json
 ```
 
 Existing installs with state under `$HOME/.local/share/crush/crush.json` are migrated automatically on load and the legacy file is removed once the transfer succeeds.
+
+### Local model helpers
+
+If you run models locally, the helper scripts under `scripts/`—for example, `scripts/vllm-openorca.sh`
+or `scripts/llamacpp-20b.sh`—can bootstrap vLLM or llama.cpp servers. Each script accepts
+configuration through environment variables so you can point at your own paths and ports without
+editing the files:
+
+```bash
+export CRUSH_LOCAL_MODELS=$HOME/.local/share/crush/models
+export MODEL_PATH="$CRUSH_LOCAL_MODELS/vllm/openorca-7b"
+export PORT=9000
+scripts/vllm-openorca.sh
+```
+
+The `scripts/consolidate-models.py` utility scans your Hugging Face cache and creates stable
+symlinks under `$CRUSH_LOCAL_MODELS`. Run it after downloading new models to keep the aliases up to
+date.
+
+### Development quick start
+
+```bash
+# Install formatter and linter binaries
+task bootstrap
+
+# Build the CLI into ./bin/crush
+task build
+
+# Remove build artifacts when you are done
+task clean
+
+# Produce a local snapshot release with GoReleaser
+task build:release
+```
 
 #### Ignoring directories from LSP watchers
 
@@ -199,7 +236,16 @@ Open the in-app Commands palette (`Ctrl+K`) and choose **Edit LSP Ignore Paths**
 ### LSPs
 
 Crush can use LSPs for additional context to help inform its decisions, just
-like you would. LSPs can be added manually like so:
+like you would. Configure them in your project or global config and manage them via CLI.
+
+- `crush lsp list` — list configured servers with enable/disable state and resolved paths
+- `crush lsp enable <name>` / `crush lsp disable <name>` — toggle a server on or off (persisted to `~/.config/crush/crush.state.json`)
+- `crush lsp test <name>` — check if the binary is on `PATH` and print a quick `--version`
+- `crush doctor lsp` — diagnose all configured LSPs; set `CRUSH_LSP_VERSION_CHECK=1` to include versions
+
+When the header details are open in the TUI, Crush shows a compact LSP summary (active/total) and a concise per‑LSP status list (✓ found, ⚠ missing, “off” when disabled).
+
+LSPs can be added manually like so:
 
 ```json
 {
@@ -230,12 +276,47 @@ tool will fetch the required toolchain automatically if you are on Go 1.21+.
 If you prefer to manage toolchains yourself, install Go 1.25 or newer before
 running any `task` targets.
 
+### External Editor Configuration
+
+Crush launches your preferred editor from the `VISUAL` or `EDITOR` environment
+variable when you choose “Open in editor”. If your editor path contains spaces,
+quote it and pass flags normally. Examples:
+
+```bash
+export VISUAL='"/opt/My Editor/editor" -w'   # quoted path + flag
+export EDITOR='code --wait'                   # unquoted with args
+```
+
+The editor command is parsed with POSIX shell rules for robust splitting.
+
+### Updating Golden Snapshots
+
+Golden snapshots live alongside tests under `testdata/`. Update goldens after
+intentional UI changes using Taskfile helpers:
+
+```bash
+# Update all packages that use goldens
+task test:update
+
+# Update specific areas
+task test:update:chat
+task test:update:splash
+task test:update:header
+```
+
+You can also update a specific package directly:
+
+```bash
+go test ./internal/tui/page/chat -run TestChatPage -update
+```
+
 ### MCPs
 
 Crush also supports Model Context Protocol (MCP) servers through three
 transport types: `stdio` for command-line servers, `http` for HTTP endpoints,
-and `sse` for Server-Sent Events. Environment variable expansion is supported
-using `$(echo $VAR)` syntax.
+and `sse` for Server-Sent Events. The `type` field is optional (defaults to
+`stdio`) and matches case-insensitively. Environment variable expansion is
+supported using `$(echo $VAR)` syntax.
 
 ```json
 {
@@ -562,8 +643,7 @@ python scripts/prefetch-vllm-models.py
 
 The script creates aliases like `~/.local/share/crush/models/vllm/llama3-8b`
 (override with `CRUSH_LOCAL_MODELS`) so you can point vLLM at the cached
-snapshot directly. On Windows, use the absolute paths printed by the script when
-updating the command below. Need more space? Point `CRUSH_LOCAL_MODELS` to a
+snapshot directly. Need more space? Point `CRUSH_LOCAL_MODELS` to a
  fast volume (e.g. `export CRUSH_LOCAL_MODELS=/run/media/miko/AYA/ai-models`)
 and add it to your shell profile so it persists across reboots.
 

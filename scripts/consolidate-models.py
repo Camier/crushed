@@ -8,7 +8,7 @@ Creates canonical symlinks for:
 
 Writes a manifest to <ROOT>/models-manifest.json listing discovered repos and links.
 
-ROOT is resolved from CRUSH_LOCAL_MODELS or defaults to /run/media/miko/AYA/ai-models.
+ROOT is resolved from CRUSH_LOCAL_MODELS or defaults to ~/.local/share/crush/models.
 
 Idempotent and safe: re-links only when necessary.
 """
@@ -26,7 +26,7 @@ def get_root() -> Path:
     root = os.environ.get("CRUSH_LOCAL_MODELS")
     if root:
         return Path(os.path.expanduser(root))
-    return Path("/run/media/miko/AYA/ai-models")
+    return Path.home() / ".local" / "share" / "crush" / "models"
 
 
 def resolve_snapshot(repo_dir: Path) -> Optional[Path]:
@@ -116,7 +116,24 @@ def main() -> int:
                     manifest["vllm_aliases"].append({"alias": name, "target": str(snap), "error": str(e)})
 
     # GGUF consolidation — scan likely roots and link into gguf/
-    search_roots = [hf, Path("/home/miko/LAB/models"), Path("/run/media/miko")]
+    def add_root(candidate: Optional[Path]) -> None:
+        if candidate and candidate.exists() and candidate not in search_roots:
+            search_roots.append(candidate)
+
+    search_roots: list[Path] = []
+    add_root(hf)
+    add_root(root)
+    parent = root.parent if root.parent != root else None
+    add_root(parent)
+    add_root(Path.home() / "models")
+
+    extra_roots = os.environ.get("CRUSH_MODEL_SEARCH_PATHS", "")
+    if extra_roots:
+        for part in extra_roots.split(os.pathsep):
+            part = part.strip()
+            if part:
+                add_root(Path(os.path.expanduser(part)))
+
     seen: set[str] = set()
     for base in search_roots:
         if not base.exists():

@@ -191,7 +191,13 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Model: quit.NewQuitDialog(),
 		})
 	case commands.ToggleYoloModeMsg:
-		a.app.Permissions.SetSkipRequests(!a.app.Permissions.SkipRequests())
+		previous := a.app.Permissions.SkipRequests()
+		a.app.Permissions.SetSkipRequests(!previous)
+		if previous {
+			cmds = append(cmds, util.ReportInfo("Permission prompts re-enabled"))
+		} else {
+			cmds = append(cmds, util.ReportInfo("Auto-approve enabled"))
+		}
 	case commands.ToggleHelpMsg:
 		a.status.ToggleFullHelp()
 		a.showingFullHelp = !a.showingFullHelp
@@ -521,7 +527,7 @@ func (a *appModel) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 // moveToPage handles navigation between different pages in the application.
 func (a *appModel) moveToPage(pageID page.PageID) tea.Cmd {
 	if a.app.CoderAgent.IsBusy() {
-		// TODO: maybe remove this :  For now we don't move to any page if the agent is busy
+		// Prevent page navigation while the agent is busy
 		return util.ReportWarn("Agent is busy, please wait...")
 	}
 

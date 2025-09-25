@@ -37,15 +37,13 @@ func DefaultEditorKeyMap() EditorKeyMap {
 
 // KeyBindings implements layout.KeyMapProvider
 func (k EditorKeyMap) KeyBindings() []key.Binding {
-	return []key.Binding{
+	bindings := []key.Binding{
 		k.AddFile,
 		k.SendMessage,
 		k.OpenEditor,
 		k.Newline,
-		AttachmentsKeyMaps.AttachmentDeleteMode,
-		AttachmentsKeyMaps.DeleteAllAttachments,
-		AttachmentsKeyMaps.Escape,
 	}
+	return append(bindings, AttachmentsKeyMaps.KeyBindings()...)
 }
 
 type DeleteAttachmentKeyMaps struct {
@@ -54,7 +52,6 @@ type DeleteAttachmentKeyMaps struct {
 	DeleteAllAttachments key.Binding
 }
 
-// TODO: update this to use the new keymap concepts
 var AttachmentsKeyMaps = DeleteAttachmentKeyMaps{
 	AttachmentDeleteMode: key.NewBinding(
 		key.WithKeys("ctrl+r"),
@@ -68,4 +65,13 @@ var AttachmentsKeyMaps = DeleteAttachmentKeyMaps{
 		key.WithKeys("r"),
 		key.WithHelp("ctrl+r+r", "delete all attachments"),
 	),
+}
+
+// KeyBindings implements layout.KeyMapProvider for delete-mode bindings.
+func (k DeleteAttachmentKeyMaps) KeyBindings() []key.Binding {
+	return []key.Binding{
+		k.AttachmentDeleteMode,
+		k.DeleteAllAttachments,
+		k.Escape,
+	}
 }

@@ -201,6 +201,7 @@ func (dl *directoryLister) getIgnore(path string) ignore.IgnoreParser {
 // ListDirectory lists files and directories in the specified path,
 func ListDirectory(initialPath string, ignorePatterns []string, limit int) ([]string, bool, error) {
 	var results []string
+	var mu sync.Mutex
 	truncated := false
 	dl := NewDirectoryLister(initialPath)
 
@@ -227,12 +228,15 @@ func ListDirectory(initialPath string, ignorePatterns []string, limit int) ([]st
 			if d.IsDir() {
 				path = path + string(filepath.Separator)
 			}
+			mu.Lock()
 			results = append(results, path)
-		}
-
-		if limit > 0 && len(results) >= limit {
-			truncated = true
-			return filepath.SkipAll
+			// Enforce limit under lock to prevent races
+			if limit > 0 && len(results) >= limit {
+				truncated = true
+				mu.Unlock()
+				return filepath.SkipAll
+			}
+			mu.Unlock()
 		}
 
 		return nil

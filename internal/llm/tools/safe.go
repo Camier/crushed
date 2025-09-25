@@ -1,7 +1,5 @@
 package tools
 
-import "runtime"
-
 var safeCommands = []string{
 	// Bash builtins and core utils
 	"cal",
@@ -54,17 +52,4 @@ var safeCommands = []string{
 	"git tag",
 }
 
-func init() {
-	if runtime.GOOS == "windows" {
-		safeCommands = append(
-			safeCommands,
-			// Windows-specific commands
-			"ipconfig",
-			"nslookup",
-			"ping",
-			"systeminfo",
-			"tasklist",
-			"where",
-		)
-	}
-}
+// POSIX-only: no platform-specific safe command extensions

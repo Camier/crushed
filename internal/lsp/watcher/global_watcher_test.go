@@ -4,9 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
 	"github.com/raphamorim/notify"
 )
@@ -298,5 +300,72 @@ func TestGlobalWatcherShutdown(t *testing.T) {
 		// Expected
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Expected context to be cancelled after shutdown")
+	}
+}
+
+func TestGlobalWatcherRespectsLSPIgnorePaths(t *testing.T) {
+	t.Setenv("CRUSH_DISABLE_PROVIDER_AUTO_UPDATE", "1")
+
+	// Temp workspace
+	tempDir := t.TempDir()
+	// Initialize config pointing to tempDir
+	cfg, err := config.Init(tempDir, filepath.Join(tempDir, ".crush"), false)
+	if err != nil {
+		t.Fatalf("config.Init: %v", err)
+	}
+	// Ignore the 'ignored' directory via LSPIgnorePaths
+	cfg.Options.LSPIgnorePaths = append(cfg.Options.LSPIgnorePaths, "ignored/")
+
+	// Prepare global watcher singleton with this root and enable started flag
+	gw := instance()
+	gw.root = tempDir
+	gw.started.Store(true)
+	// Apply ignore matcher with LSPIgnorePaths
+	ReloadIgnoreSystem()
+
+	// Watch recursively with a dedicated channel
+	events := make(chan notify.EventInfo, 100)
+	watchPath := filepath.Join(tempDir, "...")
+	if err := notify.Watch(watchPath, events, notify.All); err != nil {
+		t.Fatalf("notify.Watch: %v", err)
+	}
+	defer notify.Stop(events)
+
+	// Create dirs and files
+	ignoredDir := filepath.Join(tempDir, "ignored")
+	okDir := filepath.Join(tempDir, "ok")
+	if err := os.MkdirAll(ignoredDir, 0o755); err != nil {
+		t.Fatalf("mkdir ignored: %v", err)
+	}
+	if err := os.MkdirAll(okDir, 0o755); err != nil {
+		t.Fatalf("mkdir ok: %v", err)
+	}
+
+	ignoredFile := filepath.Join(ignoredDir, "a.txt")
+	okFile := filepath.Join(okDir, "b.txt")
+	if err := os.WriteFile(ignoredFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("write ignored: %v", err)
+	}
+	if err := os.WriteFile(okFile, []byte("y"), 0o644); err != nil {
+		t.Fatalf("write ok: %v", err)
+	}
+
+	// Collect a few events with timeout
+	seenIgnored := false
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && !seenIgnored {
+		select {
+		case ev := <-events:
+			p := ev.Path()
+			// fmt.Printf("event: %s\n", p)
+			if strings.Contains(p, ignoredFile) || filepath.Clean(p) == ignoredFile {
+				seenIgnored = true
+			}
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+
+	if seenIgnored {
+		t.Fatalf("expected no events for ignored path via LSPIgnorePaths, but saw one for %s", ignoredFile)
 	}
 }

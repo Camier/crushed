@@ -48,11 +48,9 @@ builds:
     goos:
       - linux
       - darwin
-      - windows
       - freebsd
       - openbsd
       - netbsd
-      - android
     goarch:
       - amd64
       - arm64
@@ -85,9 +83,7 @@ archives:
       - LICENSE*
       - manpages/*
       - completions/*
-    format_overrides:
-      - goos: windows
-        formats: [zip]
+    format_overrides: []
 
 checksum:
   name_template: "checksums.txt"
@@ -185,14 +181,7 @@ brews:
       fish_completion.install "completions/{{ .ProjectName }}.fish"
       man1.install "manpages/{{ .ProjectName }}.1.gz"
 
-scoops:
-  - repository:
-      owner: charmbracelet
-      name: scoop-bucket
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    commit_author:
-      name: "Charm"
-      email: "charmcli@users.noreply.github.com"
+scoops: []
 
 npms:
   - name: "@charmland/crush"
@@ -257,28 +246,7 @@ nix:
       installManPage ./manpages/crush.1.gz
       installShellCompletion ./completions/*
 
-winget:
-  - publisher: charmbracelet
-    copyright: Charmbracelet, Inc
-    publisher_url: https://charm.land
-    release_notes_url: "https://github.com/charmbracelet/crush/releases/tag/{{.Tag}}"
-    license_url: https://github.com/charmbracelet/crush/blob/main/LICENSE.md
-    commit_author:
-      name: "Charm"
-      email: "charmcli@users.noreply.github.com"
-    repository:
-      owner: "charmbracelet"
-      name: winget-pkgs
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-      branch: "crush-{{.Version}}"
-      pull_request:
-        enabled: true
-        draft: false
-        check_boxes: true
-        base:
-          owner: microsoft
-          name: winget-pkgs
-          branch: master
+winget: []
 
 changelog:
   sort: asc

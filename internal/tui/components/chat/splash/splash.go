@@ -52,7 +52,6 @@ const (
 // OnboardingCompleteMsg is sent when onboarding is complete
 type (
 	OnboardingCompleteMsg struct{}
-	SubmitAPIKeyMsg       struct{}
 )
 
 type splashCmp struct {
@@ -127,10 +126,24 @@ func (s *splashCmp) SetSize(width int, height int) tea.Cmd {
 	if rerenderLogo || wasSmallScreen != s.isSmallScreen() {
 		s.logoRendered = s.logoBlock()
 	}
-	// remove padding, logo height, gap, title space
-	s.listHeight = s.height - lipgloss.Height(s.logoRendered) - (SplashScreenPaddingY * 2) - s.logoGap() - 2
+
+	availableHeight := s.height - lipgloss.Height(s.logoRendered) - (SplashScreenPaddingY * 2) - s.logoGap() - 2
+	if availableHeight < 0 {
+		availableHeight = 0
+	}
+	s.listHeight = availableHeight
+
 	listWidth := min(60, width)
-	s.apiKeyInput.SetWidth(width - 2)
+	if listWidth < 0 {
+		listWidth = 0
+	}
+
+	inputWidth := width - 2
+	if inputWidth < 0 {
+		inputWidth = 0
+	}
+	s.apiKeyInput.SetWidth(inputWidth)
+
 	return s.modelList.SetSize(listWidth, s.listHeight)
 }
 
@@ -142,16 +155,13 @@ func (s *splashCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case models.APIKeyStateChangeMsg:
 		u, cmd := s.apiKeyInput.Update(msg)
 		s.apiKeyInput = u.(*models.APIKeyInput)
-		if msg.State == models.APIKeyInputStateVerified {
-			return s, tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
-				return SubmitAPIKeyMsg{}
-			})
+		switch msg.State {
+		case models.APIKeyInputStateVerified:
+			return s, tea.Batch(cmd, util.ReportInfo("Press Enter to save your API key"))
+		case models.APIKeyInputStateError:
+			s.isAPIKeyValid = false
 		}
 		return s, cmd
-	case SubmitAPIKeyMsg:
-		if s.isAPIKeyValid {
-			return s, s.saveAPIKeyAndContinue(s.apiKeyValue)
-		}
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, s.keyMap.Back):
@@ -422,7 +432,7 @@ func (s *splashCmp) View() string {
 	t := styles.CurrentTheme()
 	var content string
 	if s.needsAPIKey {
-		remainingHeight := s.height - lipgloss.Height(s.logoRendered) - (SplashScreenPaddingY * 2)
+		remainingHeight := max(0, s.height-lipgloss.Height(s.logoRendered)-(SplashScreenPaddingY*2))
 		apiKeyView := t.S().Base.PaddingLeft(1).Render(s.apiKeyInput.View())
 		apiKeySelector := t.S().Base.AlignVertical(lipgloss.Bottom).Height(remainingHeight).Render(
 			lipgloss.JoinVertical(
@@ -437,7 +447,7 @@ func (s *splashCmp) View() string {
 		)
 	} else if s.isOnboarding {
 		modelListView := s.modelList.View()
-		remainingHeight := s.height - lipgloss.Height(s.logoRendered) - (SplashScreenPaddingY * 2)
+		remainingHeight := max(0, s.height-lipgloss.Height(s.logoRendered)-(SplashScreenPaddingY*2))
 		modelSelector := t.S().Base.AlignVertical(lipgloss.Bottom).Height(remainingHeight).Render(
 			lipgloss.JoinVertical(
 				lipgloss.Left,
@@ -484,7 +494,7 @@ func (s *splashCmp) View() string {
 		})
 
 		buttons := lipgloss.JoinHorizontal(lipgloss.Left, yesButton, "  ", noButton)
-		remainingHeight := s.height - lipgloss.Height(s.logoRendered) - (SplashScreenPaddingY * 2)
+		remainingHeight := max(0, s.height-lipgloss.Height(s.logoRendered)-(SplashScreenPaddingY*2))
 
 		initContent := t.S().Base.AlignVertical(lipgloss.Bottom).PaddingLeft(1).Height(remainingHeight).Render(
 			lipgloss.JoinVertical(
@@ -594,6 +604,9 @@ func (s *splashCmp) moveCursor(cursor *tea.Cursor) *tea.Cursor {
 		infoSectionHeight := lipgloss.Height(s.infoSection())
 		baseOffset := logoHeight + SplashScreenPaddingY + infoSectionHeight
 		remainingHeight := s.height - baseOffset - lipgloss.Height(s.apiKeyInput.View()) - SplashScreenPaddingY
+		if remainingHeight < 0 {
+			remainingHeight = 0
+		}
 		offset := baseOffset + remainingHeight
 		cursor.Y += offset
 		cursor.X = cursor.X + 1

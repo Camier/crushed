@@ -8,7 +8,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -335,6 +334,23 @@ func (c *Config) setDefaults(workingDir, dataDir string) {
 	if c.MCP == nil {
 		c.MCP = make(map[string]MCPConfig)
 	}
+	for name, mcpCfg := range c.MCP {
+		rawType := string(mcpCfg.Type)
+		switch rawType {
+		case "":
+			mcpCfg.Type = MCPStdio
+		default:
+			normalized := MCPType(strings.ToLower(rawType))
+			switch normalized {
+			case MCPStdio, MCPHttp, MCPSse:
+				mcpCfg.Type = normalized
+			default:
+				slog.Warn("invalid MCP type, defaulting to stdio", "name", name, "type", rawType)
+				mcpCfg.Type = MCPStdio
+			}
+		}
+		c.MCP[name] = mcpCfg
+	}
 	if c.LSP == nil {
 		c.LSP = make(map[string]LSPConfig)
 	}
@@ -591,17 +607,6 @@ func globalConfig() string {
 		return filepath.Join(xdgConfigHome, appName, fmt.Sprintf("%s.json", appName))
 	}
 
-	// return the path to the main config directory
-	// for windows, it should be in `%LOCALAPPDATA%/crush/`
-	// for linux and macOS, it should be in `$HOME/.config/crush/`
-	if runtime.GOOS == "windows" {
-		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
-		}
-		return filepath.Join(localAppData, appName, fmt.Sprintf("%s.json", appName))
-	}
-
 	return filepath.Join(home.Dir(), ".config", appName, fmt.Sprintf("%s.json", appName))
 }
 
@@ -611,14 +616,6 @@ func configOverridesPath() string {
 		return filepath.Join(xdgConfigHome, appName, fmt.Sprintf("%s.state.json", appName))
 	}
 
-	if runtime.GOOS == "windows" {
-		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
-		}
-		return filepath.Join(localAppData, appName, fmt.Sprintf("%s.state.json", appName))
-	}
-
 	return filepath.Join(home.Dir(), ".config", appName, fmt.Sprintf("%s.state.json", appName))
 }
 
@@ -626,17 +623,6 @@ func legacyGlobalConfigData() string {
 	xdgDataHome := os.Getenv("XDG_DATA_HOME")
 	if xdgDataHome != "" {
 		return filepath.Join(xdgDataHome, appName, fmt.Sprintf("%s.json", appName))
-	}
-
-	// return the path to the main data directory
-	// for windows, it should be in `%LOCALAPPDATA%/crush/`
-	// for linux and macOS, it should be in `$HOME/.local/share/crush/`
-	if runtime.GOOS == "windows" {
-		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
-		}
-		return filepath.Join(localAppData, appName, fmt.Sprintf("%s.json", appName))
 	}
 
 	return filepath.Join(home.Dir(), ".local", "share", appName, fmt.Sprintf("%s.json", appName))

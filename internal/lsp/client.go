@@ -67,6 +67,10 @@ type Client struct {
 	caps    protocol.ServerCapabilities
 	capsMu  sync.RWMutex
 	capsSet atomic.Bool
+
+	// Progress tracking (best-effort for $/progress notifications)
+	progressMu   sync.Mutex
+	lastProgress time.Time
 }
 
 // NewClient creates a new LSP client.
@@ -132,7 +136,25 @@ func NewClient(ctx context.Context, name string, config config.LSPConfig) (*Clie
 		client.handleMessages()
 	}()
 
+	// Register best-effort $/progress handler to surface activity
+	client.RegisterNotificationHandler("$/progress", func(_ json.RawMessage) {
+		client.progressMu.Lock()
+		client.lastProgress = time.Now()
+		client.progressMu.Unlock()
+	})
+
 	return client, nil
+}
+
+// WorkInProgress reports if there was recent $/progress activity.
+// This is a heuristic used for UI indicators; it decays after ~2s of inactivity.
+func (c *Client) WorkInProgress() bool {
+	c.progressMu.Lock()
+	defer c.progressMu.Unlock()
+	if c.lastProgress.IsZero() {
+		return false
+	}
+	return time.Since(c.lastProgress) < 2*time.Second
 }
 
 func (c *Client) RegisterNotificationHandler(method string, handler NotificationHandler) {

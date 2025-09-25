@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
@@ -99,9 +98,7 @@ func EnsureProviderReady(ctx context.Context, cwd string, prov config.ProviderCo
 }
 
 func buildShellCommand(ctx context.Context, command string) *exec.Cmd {
-	if runtime.GOOS == "windows" {
-		return exec.CommandContext(ctx, "cmd", "/c", command)
-	}
+	// Use POSIX-compatible shell invocation consistently
 	return exec.CommandContext(ctx, "bash", "-lc", command)
 }
 
