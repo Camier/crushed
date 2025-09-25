@@ -7,6 +7,7 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 DIST_DIR="$ROOT_DIR/dist"
 BIN_NAME="crush"
+VERSION="${VERSION:-0.0.0-snapshot}"
 
 mkdir -p "$DIST_DIR"
 
@@ -17,7 +18,7 @@ build_one() {
   echo "==> Building $os/$arch"
   mkdir -p "$outdir"
   env CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
-    go build -ldflags "-s -w -X github.com/charmbracelet/crush/internal/version.Version=0.0.0-snapshot" \
+    go build -ldflags "-s -w -X github.com/charmbracelet/crush/internal/version.Version=${VERSION}" \
     -o "$outfile" .
   (cd "$DIST_DIR" && tar -czf "${BIN_NAME}_${os}_${arch}.tar.gz" "${BIN_NAME}_${os}_${arch}")
   rm -rf "$outdir"
