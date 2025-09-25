@@ -1,0 +1,56 @@
+name: Nightly Snapshot
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 03:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: Install task
+        run: go install github.com/go-task/task/v3/cmd/task@latest
+
+      - name: Bootstrap tools
+        run: task bootstrap
+
+      - name: Lint
+        run: task lint
+
+      - name: Test
+        env:
+          CRUSH_DISABLE_PROVIDER_AUTO_UPDATE: '1'
+        run: task test
+
+      - name: Build snapshot tarballs (linux/darwin, amd64/arm64)
+        run: bash scripts/build-snapshot.sh
+
+      - name: Compute tag
+        id: tag
+        run: |
+          TS=$(date -u +"%Y%m%d")
+          echo "tag=nightly-${TS}" >> $GITHUB_OUTPUT
+          echo "name=nightly snapshot ${TS}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release (pre-release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.name }}
+          prerelease: true
+          generate_release_notes: false
+          files: |
+            dist/crush_*.tar.gz
+            dist/SHASUMS256.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
