@@ -31,6 +31,19 @@
           "default_max_tokens": 1024
         }
       ]
+    },
+    "openai": {
+      "type": "openai",
+      "api_key": "$(pass show services/mcp/openai-token 2>/dev/null || pass show mcp/openai/api-key 2>/dev/null || echo ${OPENAI_API_KEY:-})"
+    },
+    "anthropic": {
+      "type": "anthropic",
+      "api_key": "$(pass show services/mcp/anthropic-token 2>/dev/null || pass show mcp/anthropic/api-key 2>/dev/null || echo ${ANTHROPIC_API_KEY:-})"
+    },
+    "openrouter": {
+      "type": "openai",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "$(pass show services/mcp/openrouter-token 2>/dev/null || pass show mcp/openrouter/api-key 2>/dev/null || echo ${OPENROUTER_API_KEY:-})"
     }
   },
   "models": {
@@ -58,6 +71,13 @@
       "env": {
         "GITHUB_TOKEN": "$(pass show mcp/github/pat 2>/dev/null || pass show mcp/github/token 2>/dev/null || pass show services/mcp/github-token 2>/dev/null || echo ${GITHUB_TOKEN:-})",
         "MCP_LOG_LEVEL": "$(echo ${MCP_LOG_LEVEL:-info})"
+      }
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://api.context7.dev/mcp/",
+      "headers": {
+        "Authorization": "$(echo Bearer $(pass show services/mcp/context7/token 2>/dev/null || pass show mcp/context7/api-key 2>/dev/null || echo ${CONTEXT7_API_KEY:-}))"
       }
     }
   }
