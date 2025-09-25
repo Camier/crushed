@@ -212,3 +212,8 @@ tasks:
     desc: Populate pass entries used by Crush (.crush.json)
     cmds:
       - scripts/pass-bootstrap.sh {{.CLI_ARGS}}
+
+  pass:consolidate:
+    desc: Consolidate pass entries to canonical paths (see scripts/pass-consolidate.sh)
+    cmds:
+      - scripts/pass-consolidate.sh {{.CLI_ARGS}}
