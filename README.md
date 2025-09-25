@@ -233,6 +233,30 @@ Open the in-app Commands palette (`Ctrl+K`) and choose **Edit LSP Ignore Paths**
 }
 ```
 
+### Models CLI Quick Examples
+
+Use these commands to select models and ensure providers are ready.
+
+- List providers and models:
+  - `crush models list`
+- Use a large model from OpenRouter:
+  - `crush models use -t large openrouter qwen/qwen3-coder:free`
+- Use a large model from Groq (example: llama-3.1-70b-versatile):
+  - `crush models use -t large groq llama-3.1-70b-versatile`
+- Use Perplexity (example: llama-3.1-sonar-large):
+  - `crush models use -t large perplexity llama-3.1-sonar-large`
+- Use Anthropic Claude Sonnet:
+  - `crush models use -t large anthropic claude-3-5-sonnet-latest`
+- Use OpenAI o4-mini with reasoning (OpenAI family only):
+  - `crush models use -t large openai o4-mini --reasoning-effort medium`
+- Use LM Studio local server (after enabling local API):
+  - `export LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1`
+  - `crush models use -t large lmstudio qwen/qwen3-30b-a3b-2507`
+- Check readiness for all providers:
+  - `crush models status`
+
+Tip: if a local provider needs bootstrapping, set a `startup_command` on the provider or run a helper (e.g., `scripts/lmstudio-start.sh`, `scripts/vllm-openorca.sh`).
+
 ### LSPs
 
 Crush can use LSPs for additional context to help inform its decisions, just
