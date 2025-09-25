@@ -56,7 +56,7 @@
         "@cyanheads/git-mcp-server"
       ],
       "env": {
-        "GITHUB_TOKEN": "$(echo ${GITHUB_TOKEN:-})",
+        "GITHUB_TOKEN": "$(pass show mcp/github/pat 2>/dev/null || pass show mcp/github/token 2>/dev/null || pass show services/mcp/github-token 2>/dev/null || echo ${GITHUB_TOKEN:-})",
         "MCP_LOG_LEVEL": "$(echo ${MCP_LOG_LEVEL:-info})"
       }
     }
