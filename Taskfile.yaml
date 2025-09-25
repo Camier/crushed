@@ -227,3 +227,10 @@ tasks:
     desc: Cleanup legacy pass entries and prune empty dirs (delegates to pass:consolidate)
     cmds:
       - scripts/pass-cleanup.sh {{.CLI_ARGS}}
+
+  pass:setup:
+    desc: Bootstrap tokens, consolidate to canonical paths, and cleanup legacy entries
+    cmds:
+      - scripts/pass-bootstrap.sh
+      - scripts/pass-consolidate.sh --force --delete-sources --reencrypt
+      - scripts/pass-cleanup.sh
