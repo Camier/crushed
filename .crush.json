@@ -34,26 +34,26 @@
     },
     "openai": {
       "type": "openai",
-      "api_key": "$(pass show services/mcp/openai-token 2>/dev/null || pass show mcp/openai/api-key 2>/dev/null || echo ${OPENAI_API_KEY:-})"
+      "api_key": "$(pass show services/mcp/openai-token 2>/dev/null || echo ${OPENAI_API_KEY:-})"
     },
     "anthropic": {
       "type": "anthropic",
-      "api_key": "$(pass show services/mcp/anthropic-token 2>/dev/null || pass show mcp/anthropic/api-key 2>/dev/null || echo ${ANTHROPIC_API_KEY:-})"
+      "api_key": "$(pass show services/mcp/anthropic-token 2>/dev/null || echo ${ANTHROPIC_API_KEY:-})"
     },
     "openrouter": {
       "type": "openai",
       "base_url": "https://openrouter.ai/api/v1",
-      "api_key": "$(pass show services/mcp/openrouter-token 2>/dev/null || pass show mcp/openrouter/api-key 2>/dev/null || echo ${OPENROUTER_API_KEY:-})"
+      "api_key": "$(pass show services/mcp/openrouter-token 2>/dev/null || echo ${OPENROUTER_API_KEY:-})"
     },
     "perplexity": {
       "type": "openai",
       "base_url": "https://api.perplexity.ai",
-      "api_key": "$(pass show services/mcp/perplexity-token 2>/dev/null || pass show mcp/perplexity/api-key 2>/dev/null || echo ${PPLX_API_KEY:-${PERPLEXITY_API_KEY:-}})"
+      "api_key": "$(pass show services/mcp/perplexity-token 2>/dev/null || echo ${PPLX_API_KEY:-${PERPLEXITY_API_KEY:-}})"
     },
     "groq": {
       "type": "openai",
       "base_url": "https://api.groq.com/openai/v1",
-      "api_key": "$(pass show services/mcp/groq-token 2>/dev/null || pass show mcp/groq/api-key 2>/dev/null || echo ${GROQ_API_KEY:-})"
+      "api_key": "$(pass show services/mcp/groq-token 2>/dev/null || echo ${GROQ_API_KEY:-})"
     },
     "lmstudio": {
       "type": "openai",
@@ -85,7 +85,7 @@
         "@cyanheads/git-mcp-server"
       ],
       "env": {
-        "GITHUB_TOKEN": "$(pass show mcp/github/pat 2>/dev/null || pass show mcp/github/token 2>/dev/null || pass show services/mcp/github-token 2>/dev/null || echo ${GITHUB_TOKEN:-})",
+        "GITHUB_TOKEN": "$(pass show services/mcp/github-token 2>/dev/null || echo ${GITHUB_TOKEN:-})",
         "MCP_LOG_LEVEL": "$(echo ${MCP_LOG_LEVEL:-info})"
       }
     },
@@ -93,7 +93,7 @@
       "type": "http",
       "url": "https://api.context7.dev/mcp/",
       "headers": {
-        "Authorization": "$(echo Bearer $(pass show services/mcp/context7/token 2>/dev/null || pass show mcp/context7/api-key 2>/dev/null || echo ${CONTEXT7_API_KEY:-}))"
+        "Authorization": "$(echo Bearer $(pass show services/mcp/context7/token 2>/dev/null || echo ${CONTEXT7_API_KEY:-}))"
       }
     }
   }
