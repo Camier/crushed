@@ -43,6 +43,7 @@ ENTRIES=(
   "services/mcp/openrouter-token|OpenRouter API key"
   "services/mcp/perplexity-token|Perplexity API key"
   "services/mcp/groq-token|Groq API key"
+  "services/mcp/sourcery-token|Sourcery API token"
 )
 
 maybe_insert() {
