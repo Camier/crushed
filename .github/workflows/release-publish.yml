@@ -1,0 +1,15 @@
+name: Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (vX.Y.Z)"
+        required: true
+
+jobs:
+  publish:
+    uses: Camier/LAB/.github/workflows/release-publish.yml@main
+    with:
+      version: ${{ github.event.inputs.version }}
+    secrets: inherit

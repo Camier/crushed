@@ -1,0 +1,12 @@
+name: Hardened CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: Camier/LAB/.github/workflows/hardened-ci.yml@main
+    secrets: inherit

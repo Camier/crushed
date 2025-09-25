@@ -1,0 +1,13 @@
+name: Publish Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    uses: Camier/LAB/.github/workflows/docs-pages.yml@main
+    secrets: inherit

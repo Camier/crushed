@@ -265,9 +265,14 @@ Keep project config env‑only, and use your user config to resolve secrets via 
 
 Example (with pass resolution): see `docs/examples/user-config.pass.json`.
 
-Populate secrets safely:
+Quick setup (recommended):
+- `task userconfig:install -- --force` (install sample user config; optional)
+- `task pass:setup` (bootstrap tokens → consolidate → cleanup)
+
+Populate/manage secrets individually:
 - `task pass:bootstrap` (guided inserts)
 - `task pass:consolidate -- --dry-run` (see what would change)
+- `task pass:cleanup -- --dry-run` (prune empty legacy dirs)
 
 Environment fallback works too; any missing pass entries fall back to env vars like `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
 
@@ -279,7 +284,14 @@ like you would. Configure them in your project or global config and manage them 
 - `crush lsp list` — list configured servers with enable/disable state and resolved paths
 - `crush lsp enable <name>` / `crush lsp disable <name>` — toggle a server on or off (persisted to `~/.config/crush/crush.state.json`)
 - `crush lsp test <name>` — check if the binary is on `PATH` and print a quick `--version`
-- `crush doctor lsp` — diagnose all configured LSPs; set `CRUSH_LSP_VERSION_CHECK=1` to include versions
+- `crush doctor lsp` — diagnose all configured LSPs; set `CRUSH_LSP_VERSION_CHECK=1` to include versions and install hints
+
+Common language servers are not bundled; install them with your toolchain before enabling:
+- Go: `go install golang.org/x/tools/gopls@latest`
+- TypeScript/JavaScript: `npm install -g typescript-language-server typescript`
+- Python: `pip install "python-lsp-server[all]"` or `npm install -g pyright`
+- Rust: `rustup component add rust-analyzer`
+- Shell: `npm install -g bash-language-server`
 
 When the header details are open in the TUI, Crush shows a compact LSP summary (active/total) and a concise per‑LSP status list (✓ found, ⚠ missing, “off” when disabled).
 

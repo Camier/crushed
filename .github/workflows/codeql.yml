@@ -1,0 +1,14 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    uses: Camier/LAB/.github/workflows/codeql.yml@main
+    secrets: inherit

@@ -37,7 +37,11 @@ var rootCmd = &cobra.Command{
 	Short: "Terminal-based AI assistant for software development",
 	Long: `Crush is a powerful terminal-based AI assistant that helps with software development tasks.
 It provides an interactive chat interface with AI capabilities, code analysis, and LSP integration
-to assist developers in writing, debugging, and understanding code directly from the terminal.`,
+to assist developers in writing, debugging, and understanding code directly from the terminal.
+
+Optional setup for user-level secrets (see README):
+- task userconfig:install -- --force
+- task pass:setup`,
 	Example: `
 # Run in interactive mode
 crush
@@ -59,6 +63,11 @@ crush run "Explain the use of context in Go"
 
 # Run in dangerous mode (auto-accept all permissions)
 crush -y
+
+# Optional: install sample user config and set up secrets via pass
+# (run in repository root)
+#   task userconfig:install -- --force
+#   task pass:setup
   `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		app, err := setupApp(cmd)

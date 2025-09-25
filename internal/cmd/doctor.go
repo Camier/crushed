@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -35,6 +36,8 @@ var doctorProvidersCmd = &cobra.Command{
 			return err
 		}
 
+		out := cmd.OutOrStdout()
+
 		debug, _ := cmd.Root().PersistentFlags().GetBool("debug")
 		dataDir, _ := cmd.Root().PersistentFlags().GetString("data-dir")
 
@@ -58,7 +61,7 @@ var doctorProvidersCmd = &cobra.Command{
 			ctx = context.Background()
 		}
 
-		fmt.Fprintln(os.Stdout, "Checking providers...")
+		fmt.Fprintln(out, "Checking providers...")
 		for _, row := range providers {
 			name := row.id
 			if name == "" {
@@ -67,20 +70,20 @@ var doctorProvidersCmd = &cobra.Command{
 
 			ready, detail, checkErr := providerstatus.CheckHealth(ctx, nil, row.prov)
 			if checkErr != nil {
-				fmt.Fprintf(os.Stdout, "- %s: health check failed (%s)\n", name, checkErr.Error())
+				fmt.Fprintf(out, "- %s: health check failed (%s)\n", name, checkErr.Error())
 				if row.prov.BaseURL != "" {
-					fmt.Fprintf(os.Stdout, "  url: %s\n", row.prov.BaseURL)
+					fmt.Fprintf(out, "  url: %s\n", row.prov.BaseURL)
 				}
 				if row.prov.StartupHealthPath != "" {
-					fmt.Fprintf(os.Stdout, "  health: %s (timeout %ds)\n", row.prov.StartupHealthPath, row.prov.StartupTimeoutSeconds)
+					fmt.Fprintf(out, "  health: %s (timeout %ds)\n", row.prov.StartupHealthPath, row.prov.StartupTimeoutSeconds)
 				}
 				continue
 			}
 			if ready {
 				if row.prov.BaseURL != "" {
-					fmt.Fprintf(os.Stdout, "- %s: ready (url: %s)\n", name, row.prov.BaseURL)
+					fmt.Fprintf(out, "- %s: ready (url: %s)\n", name, row.prov.BaseURL)
 				} else {
-					fmt.Fprintf(os.Stdout, "- %s: ready\n", name)
+					fmt.Fprintf(out, "- %s: ready\n", name)
 				}
 				continue
 			}
@@ -89,30 +92,39 @@ var doctorProvidersCmd = &cobra.Command{
 				if detail == "" {
 					detail = "no response"
 				}
-				fmt.Fprintf(os.Stdout, "- %s: unreachable (%s)\n", name, detail)
+				fmt.Fprintf(out, "- %s: unreachable (%s)\n", name, detail)
 				if row.prov.BaseURL != "" {
-					fmt.Fprintf(os.Stdout, "  url: %s\n", row.prov.BaseURL)
+					fmt.Fprintf(out, "  url: %s\n", row.prov.BaseURL)
 				}
 				if row.prov.StartupHealthPath != "" {
-					fmt.Fprintf(os.Stdout, "  health: %s (timeout %ds)\n", row.prov.StartupHealthPath, row.prov.StartupTimeoutSeconds)
+					fmt.Fprintf(out, "  health: %s (timeout %ds)\n", row.prov.StartupHealthPath, row.prov.StartupTimeoutSeconds)
 				}
 				if row.prov.StartupCommand != "" {
-					fmt.Fprintln(os.Stdout, "  hint: try 'crush doctor providers --start' to auto-start this provider")
+					fmt.Fprintln(out, "  hint: try 'crush doctor providers --start' to auto-start this provider")
 				}
 				continue
 			}
 
-			fmt.Fprintf(os.Stdout, "- %s: unreachable (%s), attempting startup...\n", name, detail)
+			fmt.Fprintf(out, "- %s: unreachable (%s), attempting startup...\n", name, detail)
 			if err := providerstatus.EnsureProviderReady(ctx, cwd, row.prov); err != nil {
-				fmt.Fprintf(os.Stdout, "  ✗ startup failed: %s\n", err.Error())
+				fmt.Fprintf(out, "  ✗ startup failed: %s\n", err.Error())
 				continue
 			}
 
-			fmt.Fprintf(os.Stdout, "  ✓ provider is ready\n")
+			fmt.Fprintf(out, "  ✓ provider is ready\n")
 		}
 
 		return nil
 	},
+}
+
+var lspInstallHints = map[string]string{
+	"gopls":                      "go install golang.org/x/tools/gopls@latest",
+	"typescript-language-server": "npm install -g typescript-language-server typescript",
+	"pylsp":                      "pip install 'python-lsp-server[all]'",
+	"pyright":                    "npm install -g pyright",
+	"rust-analyzer":              "rustup component add rust-analyzer",
+	"bash-language-server":       "npm install -g bash-language-server",
 }
 
 var doctorLSPCmd = &cobra.Command{
@@ -123,6 +135,8 @@ var doctorLSPCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		out := cmd.OutOrStdout()
 
 		debug, _ := cmd.Root().PersistentFlags().GetBool("debug")
 		dataDir, _ := cmd.Root().PersistentFlags().GetString("data-dir")
@@ -139,7 +153,7 @@ var doctorLSPCmd = &cobra.Command{
 		}
 		sort.Strings(names)
 
-		fmt.Fprintln(os.Stdout, "Checking LSP servers...")
+		fmt.Fprintln(out, "Checking LSP servers...")
 		doVersion := os.Getenv("CRUSH_LSP_VERSION_CHECK") == "1"
 
 		for _, name := range names {
@@ -147,24 +161,30 @@ var doctorLSPCmd = &cobra.Command{
 			status := "missing"
 			if path, err := exec.LookPath(l.Command); err == nil {
 				status = "found"
-				fmt.Fprintf(os.Stdout, "- %s: %s (%s)\n", name, status, path)
+				fmt.Fprintf(out, "- %s: %s (%s)\n", name, status, path)
 				if doVersion {
 					// Attempt a quick version check with a short timeout
 					ctx, cancel := context.WithTimeout(cmd.Context(), 500*time.Millisecond)
 					defer cancel()
 					vv := exec.CommandContext(ctx, l.Command, append(l.Args, "--version")...)
 					vv.Env = append(os.Environ(), l.ResolvedEnv()...)
-					out, _ := vv.CombinedOutput()
-					line := strings.TrimSpace(string(out))
+					outBytes, _ := vv.CombinedOutput()
+					line := strings.TrimSpace(string(outBytes))
 					if line != "" {
 						if i := strings.IndexByte(line, '\n'); i >= 0 {
 							line = line[:i]
 						}
-						fmt.Fprintf(os.Stdout, "  version: %s\n", line)
+						fmt.Fprintf(out, "  version: %s\n", line)
 					}
 				}
 			} else {
-				fmt.Fprintf(os.Stdout, "- %s: %s (command: %s)\n", name, status, l.Command)
+				fmt.Fprintf(out, "- %s: %s (command: %s)\n", name, status, l.Command)
+				cmdName := strings.ToLower(filepath.Base(l.Command))
+				if hint, ok := lspInstallHints[cmdName]; ok {
+					fmt.Fprintf(out, "  hint: install via `%s`\n", hint)
+				} else {
+					fmt.Fprintf(out, "  hint: ensure %s is installed and on PATH or set an absolute command\n", l.Command)
+				}
 			}
 		}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -33,7 +32,7 @@ var doctorMCPCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Fprintln(os.Stdout, "Checking MCP entries...")
+		fmt.Fprintln(cmd.OutOrStdout(), "Checking MCP entries...")
 		// deterministic order
 		names := make([]string, 0, len(cfg.MCP))
 		for name := range cfg.MCP {
@@ -48,7 +47,7 @@ var doctorMCPCmd = &cobra.Command{
 				typeStr = "stdio"
 			}
 			summary := fmt.Sprintf("- %s: %s", name, typeStr)
-			fmt.Fprintln(os.Stdout, summary)
+			fmt.Fprintln(cmd.OutOrStdout(), summary)
 			switch strings.ToLower(typeStr) {
 			case "stdio":
 				status := "missing"
@@ -57,16 +56,16 @@ var doctorMCPCmd = &cobra.Command{
 						status = "found"
 					}
 				}
-				fmt.Fprintf(os.Stdout, "  command: %s (%s)\n", m.Command, status)
+				fmt.Fprintf(cmd.OutOrStdout(), "  command: %s (%s)\n", m.Command, status)
 			case "http", "sse":
 				url := m.URL
-				fmt.Fprintf(os.Stdout, "  url: %s\n", url)
+				fmt.Fprintf(cmd.OutOrStdout(), "  url: %s\n", url)
 				// auth header presence (don’t print value)
 				auth := "missing"
 				if h := m.ResolvedHeaders(); strings.TrimSpace(h["Authorization"]) != "" {
 					auth = "found"
 				}
-				fmt.Fprintf(os.Stdout, "  auth: %s\n", auth)
+				fmt.Fprintf(cmd.OutOrStdout(), "  auth: %s\n", auth)
 				// quick connectivity check (best effort)
 				if url != "" {
 					ctx, cancel := context.WithTimeout(cmd.Context(), 800*time.Millisecond)
@@ -77,14 +76,14 @@ var doctorMCPCmd = &cobra.Command{
 					}
 					resp, err := http.DefaultClient.Do(req)
 					if err != nil {
-						fmt.Fprintf(os.Stdout, "  check: unreachable (%s)\n", err.Error())
+						fmt.Fprintf(cmd.OutOrStdout(), "  check: unreachable (%s)\n", err.Error())
 					} else {
 						_ = resp.Body.Close()
-						fmt.Fprintf(os.Stdout, "  check: %s\n", resp.Status)
+						fmt.Fprintf(cmd.OutOrStdout(), "  check: %s\n", resp.Status)
 					}
 				}
 			default:
-				fmt.Fprintf(os.Stdout, "  note: unknown MCP type %q\n", typeStr)
+				fmt.Fprintf(cmd.OutOrStdout(), "  note: unknown MCP type %q\n", typeStr)
 			}
 		}
 		return nil

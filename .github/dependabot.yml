@@ -1,36 +1,24 @@
 version: 2
-
 updates:
-  - package-ecosystem: "gomod"
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "05:00"
-      timezone: "America/New_York"
-    labels:
-      - "area: dependencies"
+      day: "sunday"
+    open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore"
-      include: "scope"
-    groups:
-      all:
-        patterns:
-          - "*"
+      prefix: "deps"
+    labels:
+      - dependencies
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "05:00"
-      timezone: "America/New_York"
+      day: "sunday"
+    open-pull-requests-limit: 5
     labels:
-      - "area: dependencies"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    groups:
-      all:
-        patterns:
-          - "*"
+      - dependencies

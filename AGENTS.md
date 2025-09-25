@@ -1,52 +1,41 @@
 # Repository Guidelines
 
+Follow this guide when contributing features, fixes, or experiments to the Crush CLI/TUI.
+
 ## Project Structure & Module Organization
-- Go CLI/TUI app. Entry point: `main.go`.
-- Core packages under `internal/` (e.g., `app`, `tui/*`, `llm`, `config`, `shell`, `db`).
-- Database migrations in `internal/db/migrations/`; SQLC‑generated code in `internal/db/*.sql.go`.
-- Config schema lives in `schema.json`; project config is `.crush.json` or `crush.json` (user config: `$HOME/.config/crush/crush.json`).
+- `main.go` is the entry point; all reusable code lives under `internal/` (e.g., `app`, `config`, `tui/*`, `llm`, `shell`, `db`).
+- Database migrations belong in `internal/db/migrations/` with goose headers; SQLC output stays in `internal/db/*.sql.go`.
+- Tests sit beside their subjects as `*_test.go`; golden files live with the TUI experiments (see `internal/tui/exp/**/*`).
+- Configuration schema is `schema.json`; user/system configs are `.crush.json`, `crush.json`, or `$HOME/.config/crush/crush.json`.
 
 ## Build, Test, and Development Commands
-- Prereq: install task: `go install github.com/go-task/task/v3/cmd/task@latest`.
-- `task bootstrap` — install lint/format tooling (wraps `lint:install` and `fmt:install`).
-- `task build` — build the `crush` binary into `./bin/crush`.
-- `task clean` — remove `bin/` and `dist/` artifacts.
-- `task dev` — run locally with profiling flags (`go run .`).
-- `task test [ARGS]` — run tests (`go test ./...`).
-- `task lint` / `task lint-fix` — run golangci‑lint (uses `.golangci.yml`) (install via `task lint:install`).
-- `task fmt` — format with `gofumpt`.
-- `task install` — install binary.
-- `task build:release` — run `goreleaser build --snapshot` for local packaging.
-- `task schema` — generate `schema.json`.
-- CI: GitHub Actions runs build + lint on PRs; releases via GoReleaser.
+- `task bootstrap` installs formatters and linters; run it after cloning or when tooling drifts.
+- `task build` compiles the CLI to `./bin/crush`; `task install` installs it into your Go bin.
+- `task dev` runs `go run .` with profiling flags for iterative work.
+- `task test [ARGS]` wraps `go test ./...`; pass `-run` filters or `-update` to refresh golden fixtures.
+- `task lint` and `task lint-fix` execute `golangci-lint` per `.golangci.yml`; `task fmt` applies `gofumpt`/`goimports`.
+- `task build:release` calls `goreleaser build --snapshot` for packaging checks.
 
 ## Coding Style & Naming Conventions
-- Go 1.25. Use tabs; formatting enforced.
-- Format with `gofumpt` and `goimports` (enforced via lint).
-- Package and file names: short, lowercase (`internal/tui/exp/list/list.go`).
-- Exported identifiers use `PascalCase` with doc comments; unexported use `camelCase`.
+- Target Go 1.25 with tab indentation; avoid manual formatting—always run `task fmt`.
+- Keep package and file names short and lowercase; exported identifiers use PascalCase with doc comments, internals use camelCase.
+- Do not add license headers or reformat untouched files; respect `.crushignore` and `.gitignore`.
 
 ## Testing Guidelines
-- Frameworks: `testing`, `testify`, golden (`github.com/charmbracelet/x/exp/golden`).
-- Place tests alongside code as `*_test.go`.
-- Run all: `task test`. Filter: `go test ./internal/tui -run TestList`.
-- Keep tests deterministic; skip OS‑specific cases when needed (see `internal/shell/shell_test.go`).
-- Update goldens: `go test ./... -update` or `task -d internal/tui/exp/diffview test:update`.
-
-## Database Changes
-- Migrations: add goose files in `internal/db/migrations/` named `YYYYMMDDHHMMSS_description.sql` with `-- +goose Up/Down`.
-- Queries: edit `internal/db/sql/`; run `sqlc generate` (see `sqlc.yaml`).
+- Use the standard library `testing`, `testify`, and Charmbracelet golden helpers; keep cases deterministic and skip OS-specific ones when necessary.
+- Name tests `TestThing` alongside the code; use `go test ./internal/tui -run TestList` for focused runs.
+- Update golden data with `go test ./... -update` or `task -d internal/tui/exp/diffview test:update`.
 
 ## Commit & Pull Request Guidelines
-- Commit style: Conventional Commits (e.g., `feat: …`, `fix: …`, `docs(readme): …`, `chore(deps): …`). Use imperative mood and concise scope.
-- Link issues in PR descriptions (`Fixes #123`). Include screenshots or recordings for TUI changes.
-- Sign the CLA (automated check). PRs must pass CI (lint + build).
+- Follow Conventional Commits (e.g., `feat: add keybinding`, `fix: handle empty query`).
+- Link issues in PR descriptions (`Fixes #123`), note behavioral changes, and attach screenshots or recordings for TUI updates.
+- Ensure CI passes (build + lint); sign the CLA before requesting review.
 
 ## Security & Configuration Tips
-- Never commit secrets or API keys. Prefer environment variables (e.g., `OPENAI_API_KEY`).
-- Use `.crushignore` to exclude local files; `.gitignore` is respected.
-- Logs write to `./.crush/logs/crush.log`; avoid committing logs.
+- Never commit secrets; rely on environment variables such as `OPENAI_API_KEY`.
+- Logs write to `./.crush/logs/crush.log`; keep them out of Git history.
 
-## Agent‑Specific Notes
-- Keep changes minimal and focused; update tests and docs when touching behavior.
-- Do not add license headers or reformat unrelated files. Prefer `task fmt` and `task lint` before sending PRs.
+## Agent-Specific Notes
+- Keep diffs focused and minimal; prefer composing changes that pass `task fmt` and `task lint` before submission.
+- Do not revert user edits you did not create; investigate unexpected workspace changes before proceeding.
+- Use `crush doctor lsp` to spot missing language servers and follow the install hints (e.g., `go install golang.org/x/tools/gopls@latest`).

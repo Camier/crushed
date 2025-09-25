@@ -25,24 +25,16 @@ func TestDoctorLSPOutput(t *testing.T) {
 		t.Fatalf("write config: %v", err)
 	}
 
-	// Capture stdout
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("pipe: %v", err)
-	}
-	os.Stdout = w
-	defer func() {
-		_ = w.Close()
-		os.Stdout = oldStdout
-	}()
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	doctorCmd.SetOut(&buf)
+	t.Cleanup(func() {
+		rootCmd.SetOut(os.Stdout)
+		doctorCmd.SetOut(os.Stdout)
+	})
 
 	rootCmd.SetArgs([]string{"doctor", "lsp", "-c", tmp})
 	execErr := rootCmd.Execute()
-	_ = w.Close()
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
 	out := buf.String()
 
 	if execErr != nil {
@@ -56,5 +48,8 @@ func TestDoctorLSPOutput(t *testing.T) {
 	}
 	if !strings.Contains(out, "missing: missing") {
 		t.Fatalf("expected 'missing: missing', got: %s", out)
+	}
+	if !strings.Contains(out, "hint: ensure") && !strings.Contains(out, "hint: install via") {
+		t.Fatalf("expected installation hint for missing LSP, got: %s", out)
 	}
 }

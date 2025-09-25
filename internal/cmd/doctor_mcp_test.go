@@ -28,6 +28,10 @@ func TestDoctorMCPOutput(t *testing.T) {
 	var buf bytes.Buffer
 	rootCmd.SetOut(&buf)
 	doctorCmd.SetOut(&buf)
+	t.Cleanup(func() {
+		rootCmd.SetOut(os.Stdout)
+		doctorCmd.SetOut(os.Stdout)
+	})
 
 	rootCmd.SetArgs([]string{"doctor", "mcp", "-c", tmp})
 	if err := rootCmd.Execute(); err != nil {

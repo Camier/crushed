@@ -2,7 +2,7 @@
   "$schema": "https://charm.land/crush.json",
   "lsp": {
     "Go": {
-      "command": "gopls"
+      "command": "/home/miko/go/bin/gopls"
     }
   }
 }

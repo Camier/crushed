@@ -31,24 +31,16 @@ func TestDoctorProvidersOutput(t *testing.T) {
 		t.Fatalf("write config: %v", err)
 	}
 
-	// Capture stdout since the command writes directly to os.Stdout
-	oldStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("pipe: %v", err)
-	}
-	os.Stdout = w
-	defer func() {
-		_ = w.Close()
-		os.Stdout = oldStdout
-	}()
+	var buf bytes.Buffer
+	rootCmd.SetOut(&buf)
+	doctorCmd.SetOut(&buf)
+	t.Cleanup(func() {
+		rootCmd.SetOut(os.Stdout)
+		doctorCmd.SetOut(os.Stdout)
+	})
 
 	rootCmd.SetArgs([]string{"doctor", "providers", "-c", tmp})
 	execErr := rootCmd.Execute()
-	_ = w.Close()
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
 	out := buf.String()
 
 	if execErr != nil {
