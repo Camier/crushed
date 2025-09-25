@@ -222,3 +222,8 @@ tasks:
     desc: Install sample user config to $XDG_CONFIG_HOME/crush/crush.json (use -- --force to overwrite)
     cmds:
       - scripts/install-user-config.sh {{.CLI_ARGS}}
+
+  pass:cleanup:
+    desc: Cleanup legacy pass entries and prune empty dirs (delegates to pass:consolidate)
+    cmds:
+      - scripts/pass-cleanup.sh {{.CLI_ARGS}}
