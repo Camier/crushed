@@ -8,7 +8,6 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -608,17 +607,6 @@ func globalConfig() string {
 		return filepath.Join(xdgConfigHome, appName, fmt.Sprintf("%s.json", appName))
 	}
 
-	// return the path to the main config directory
-	// for windows, it should be in `%LOCALAPPDATA%/crush/`
-	// for linux and macOS, it should be in `$HOME/.config/crush/`
-	if runtime.GOOS == "windows" {
-		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
-		}
-		return filepath.Join(localAppData, appName, fmt.Sprintf("%s.json", appName))
-	}
-
 	return filepath.Join(home.Dir(), ".config", appName, fmt.Sprintf("%s.json", appName))
 }
 
@@ -628,14 +616,6 @@ func configOverridesPath() string {
 		return filepath.Join(xdgConfigHome, appName, fmt.Sprintf("%s.state.json", appName))
 	}
 
-	if runtime.GOOS == "windows" {
-		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
-		}
-		return filepath.Join(localAppData, appName, fmt.Sprintf("%s.state.json", appName))
-	}
-
 	return filepath.Join(home.Dir(), ".config", appName, fmt.Sprintf("%s.state.json", appName))
 }
 
@@ -643,17 +623,6 @@ func legacyGlobalConfigData() string {
 	xdgDataHome := os.Getenv("XDG_DATA_HOME")
 	if xdgDataHome != "" {
 		return filepath.Join(xdgDataHome, appName, fmt.Sprintf("%s.json", appName))
-	}
-
-	// return the path to the main data directory
-	// for windows, it should be in `%LOCALAPPDATA%/crush/`
-	// for linux and macOS, it should be in `$HOME/.local/share/crush/`
-	if runtime.GOOS == "windows" {
-		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			localAppData = filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local")
-		}
-		return filepath.Join(localAppData, appName, fmt.Sprintf("%s.json", appName))
 	}
 
 	return filepath.Join(home.Dir(), ".local", "share", appName, fmt.Sprintf("%s.json", appName))

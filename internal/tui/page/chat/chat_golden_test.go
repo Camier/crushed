@@ -251,6 +251,15 @@ func TestChatPage_Session_FullLayout_WithServices_Width200(t *testing.T) {
 	golden.RequireEqual(t, []byte(p.View()))
 }
 
+func TestChatPage_Session_FullLayout_WithServices_Width160(t *testing.T) {
+	p := setupFullLayoutPage(t)
+	p.SetSize(160, 40)
+	sess := session.Session{ID: "s1", Title: "Session One"}
+	_, _ = p.Update(chatcmp.SessionSelectedMsg(sess))
+	// Use configured services; size change exercises limits
+	golden.RequireEqual(t, []byte(p.View()))
+}
+
 func TestChatPage_Session_FullLayout_WithFiles_Width200(t *testing.T) {
 	p := setupFullLayoutPage(t)
 	p.SetSize(200, 40)
@@ -259,6 +268,26 @@ func TestChatPage_Session_FullLayout_WithFiles_Width200(t *testing.T) {
 	// Seed files via events for variety
 	_, _ = p.Update(pubsub.Event[history.File]{Type: pubsub.CreatedEvent, Payload: history.File{Path: filepath.Join("/proj", "A.go"), Version: 0, Content: "package a\n"}})
 	_, _ = p.Update(pubsub.Event[history.File]{Type: pubsub.UpdatedEvent, Payload: history.File{Path: filepath.Join("/proj", "A.go"), Version: 1, Content: "package a\nfunc A(){}\n"}})
+	golden.RequireEqual(t, []byte(p.View()))
+}
+
+func TestChatPage_Session_FullLayout_WithFiles_Width160(t *testing.T) {
+	p := setupFullLayoutPage(t)
+	p.SetSize(160, 40)
+	sess := session.Session{ID: "s1", Title: "Session One"}
+	_, _ = p.Update(chatcmp.SessionSelectedMsg(sess))
+	// Seed files via events for variety
+	_, _ = p.Update(pubsub.Event[history.File]{Type: pubsub.CreatedEvent, Payload: history.File{Path: filepath.Join("/proj", "A.go"), Version: 0, Content: "package a\n"}})
+	_, _ = p.Update(pubsub.Event[history.File]{Type: pubsub.UpdatedEvent, Payload: history.File{Path: filepath.Join("/proj", "A.go"), Version: 1, Content: "package a\nfunc A(){}\n"}})
+	golden.RequireEqual(t, []byte(p.View()))
+}
+
+func TestChatPage_Session_FullLayout_Details_Width160(t *testing.T) {
+	p := setupFullLayoutPage(t)
+	p.SetSize(160, 40)
+	sess := session.Session{ID: "s1", Title: "Session One"}
+	_, _ = p.Update(chatcmp.SessionSelectedMsg(sess))
+	p.showingDetails = true
 	golden.RequireEqual(t, []byte(p.View()))
 }
 
@@ -330,6 +359,20 @@ func TestChatPage_ToggleCompact_FromCompact(t *testing.T) {
 	_, _ = p.Update(chatcmp.SessionSelectedMsg(sess))
 	// Toggle to full
 	_, _ = p.Update(commands.ToggleCompactModeMsg{})
+	golden.RequireEqual(t, []byte(p.View()))
+}
+
+func TestChatPage_Session_Compact_Details_Focus(t *testing.T) {
+	cfg := setupChatTestConfig(t)
+	cfg.Options.TUI.CompactMode = true
+	p := New(minimalApp(cfg)).(*chatPage)
+	_ = p.Init()
+	p.SetSize(80, 20)
+	sess := session.Session{ID: "s1", Title: "Session One"}
+	_, _ = p.Update(chatcmp.SessionSelectedMsg(sess))
+	p.showingDetails = true
+	// Switch focus while details are open
+	p.changeFocus()
 	golden.RequireEqual(t, []byte(p.View()))
 }
 

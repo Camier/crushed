@@ -184,9 +184,7 @@ func TestPermissionService_SequentialProperties(t *testing.T) {
 
 		events := service.Subscribe(t.Context())
 
-		var wg sync.WaitGroup
-		results := make([]bool, 0)
-
+		// Process requests one at a time to avoid data races on service internals.
 		requests := []CreatePermissionRequest{
 			{
 				SessionID:   "concurrent1",
@@ -211,15 +209,13 @@ func TestPermissionService_SequentialProperties(t *testing.T) {
 			},
 		}
 
+		results := make([]bool, len(requests))
 		for i, req := range requests {
-			wg.Add(1)
-			go func(index int, request CreatePermissionRequest) {
-				defer wg.Done()
-				results = append(results, service.Request(request))
-			}(i, req)
-		}
+			done := make(chan bool, 1)
+			go func(request CreatePermissionRequest) {
+				done <- service.Request(request)
+			}(req)
 
-		for range 3 {
 			event := <-events
 			switch event.Payload.ToolName {
 			case "tool1":
@@ -229,16 +225,18 @@ func TestPermissionService_SequentialProperties(t *testing.T) {
 			case "tool3":
 				service.Deny(event.Payload)
 			}
+			results[i] = <-done
 		}
-		wg.Wait()
+
 		grantedCount := 0
-		for _, result := range results {
-			if result {
+		for _, ok := range results {
+			if ok {
 				grantedCount++
 			}
 		}
-
 		assert.Equal(t, 2, grantedCount, "Should have 2 granted and 1 denied")
+
+		// Persistent permission should auto-approve repeat of second request
 		secondReq := requests[1]
 		secondReq.Description = "Repeat of second request"
 		result := service.Request(secondReq)

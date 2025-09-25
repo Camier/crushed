@@ -8,7 +8,6 @@ import (
 )
 
 func TestSplashInternal_APIKey_Error(t *testing.T) {
-	t.Parallel()
 	s := New().(*splashCmp)
 	s.needsAPIKey = true
 	s.apiKeyInput.SetProviderName("Local")
@@ -18,7 +17,6 @@ func TestSplashInternal_APIKey_Error(t *testing.T) {
 }
 
 func TestSplashInternal_APIKey_Verifying(t *testing.T) {
-	t.Parallel()
 	s := New().(*splashCmp)
 	s.needsAPIKey = true
 	s.apiKeyInput.SetProviderName("Local")
@@ -28,7 +26,6 @@ func TestSplashInternal_APIKey_Verifying(t *testing.T) {
 }
 
 func TestSplashInternal_APIKey_Verified(t *testing.T) {
-	t.Parallel()
 	s := New().(*splashCmp)
 	s.needsAPIKey = true
 	s.apiKeyInput.SetProviderName("Local")

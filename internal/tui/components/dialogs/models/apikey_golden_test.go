@@ -8,7 +8,6 @@ import (
 )
 
 func TestAPIKeyInput_Verifying(t *testing.T) {
-	t.Parallel()
 	in := models.NewAPIKeyInput()
 	in.SetProviderName("Local")
 	in.SetWidth(40)
@@ -18,7 +17,6 @@ func TestAPIKeyInput_Verifying(t *testing.T) {
 }
 
 func TestAPIKeyInput_Verified(t *testing.T) {
-	t.Parallel()
 	in := models.NewAPIKeyInput()
 	in.SetProviderName("Local")
 	in.SetWidth(40)

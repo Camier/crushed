@@ -236,7 +236,16 @@ Open the in-app Commands palette (`Ctrl+K`) and choose **Edit LSP Ignore Paths**
 ### LSPs
 
 Crush can use LSPs for additional context to help inform its decisions, just
-like you would. LSPs can be added manually like so:
+like you would. Configure them in your project or global config and manage them via CLI.
+
+- `crush lsp list` — list configured servers with enable/disable state and resolved paths
+- `crush lsp enable <name>` / `crush lsp disable <name>` — toggle a server on or off (persisted to `~/.config/crush/crush.state.json`)
+- `crush lsp test <name>` — check if the binary is on `PATH` and print a quick `--version`
+- `crush doctor lsp` — diagnose all configured LSPs; set `CRUSH_LSP_VERSION_CHECK=1` to include versions
+
+When the header details are open in the TUI, Crush shows a compact LSP summary (active/total) and a concise per‑LSP status list (✓ found, ⚠ missing, “off” when disabled).
+
+LSPs can be added manually like so:
 
 ```json
 {

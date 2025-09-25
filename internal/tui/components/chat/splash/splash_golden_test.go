@@ -10,8 +10,6 @@ import (
 )
 
 func TestSplashCompact_Onboarding(t *testing.T) {
-	t.Parallel()
-
 	s := splash.New()
 	s.SetOnboarding(true)
 	s.SetSize(40, 20)
@@ -19,7 +17,6 @@ func TestSplashCompact_Onboarding(t *testing.T) {
 }
 
 func TestSplashCompact_Onboarding_Width30(t *testing.T) {
-	t.Parallel()
 	s := splash.New()
 	s.SetOnboarding(true)
 	s.SetSize(30, 20)
@@ -27,7 +24,6 @@ func TestSplashCompact_Onboarding_Width30(t *testing.T) {
 }
 
 func TestSplashCompact_Onboarding_Width50(t *testing.T) {
-	t.Parallel()
 	s := splash.New()
 	s.SetOnboarding(true)
 	s.SetSize(50, 20)
@@ -35,8 +31,6 @@ func TestSplashCompact_Onboarding_Width50(t *testing.T) {
 }
 
 func TestSplashCompact_ProjectInit(t *testing.T) {
-	t.Parallel()
-
 	// Initialize config with deterministic working dir for stable golden
 	cfgSetup(t, "/proj")
 

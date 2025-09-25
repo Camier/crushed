@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/v2/filepicker"
 	"github.com/charmbracelet/bubbles/v2/help"
@@ -90,7 +91,8 @@ type Theme struct {
 	YoloDotsFocused lipgloss.Style
 	YoloDotsBlurred lipgloss.Style
 
-	styles *Styles
+	styles     *Styles
+	stylesOnce sync.Once
 }
 
 type Styles struct {
@@ -127,9 +129,9 @@ type Styles struct {
 }
 
 func (t *Theme) S() *Styles {
-	if t.styles == nil {
+	t.stylesOnce.Do(func() {
 		t.styles = t.buildStyles()
-	}
+	})
 	return t.styles
 }
 
@@ -493,39 +495,49 @@ type Manager struct {
 	current *Theme
 }
 
-var defaultManager *Manager
+var (
+	defaultManager   *Manager
+	defaultManagerMu sync.Mutex
+)
 
 func SetDefaultManager(m *Manager) {
+	defaultManagerMu.Lock()
 	defaultManager = m
+	defaultManagerMu.Unlock()
 }
 
 func DefaultManager() *Manager {
+	defaultManagerMu.Lock()
 	if defaultManager == nil {
 		defaultManager = NewManager()
 	}
-	return defaultManager
+	dm := defaultManager
+	defaultManagerMu.Unlock()
+	return dm
 }
 
 func CurrentTheme() *Theme {
+	defaultManagerMu.Lock()
 	if defaultManager == nil {
 		defaultManager = NewManager()
 	}
-	return defaultManager.Current()
+	dm := defaultManager
+	defaultManagerMu.Unlock()
+	return dm.Current()
 }
 
 func NewManager() *Manager {
 	m := &Manager{
 		themes: make(map[string]*Theme),
 	}
-
 	t := NewCharmtoneTheme() // default theme
 	m.Register(t)
 	m.current = m.themes[t.Name]
-
 	return m
 }
 
 func (m *Manager) Register(theme *Theme) {
+	// No external locking needed here; used during init/test setup
 	m.themes[theme.Name] = theme
 }
 

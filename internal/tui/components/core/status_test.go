@@ -10,8 +10,6 @@ import (
 )
 
 func TestStatus(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name  string
 		opts  core.StatusOpts
@@ -112,8 +110,6 @@ func TestStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			output := core.Status(tt.opts, tt.width)
 			golden.RequireEqual(t, []byte(output))
 		})
@@ -121,8 +117,6 @@ func TestStatus(t *testing.T) {
 }
 
 func TestStatusTruncation(t *testing.T) {
-	t.Parallel()
-
 	opts := core.StatusOpts{
 		Icon:         "●",
 		Title:        "Very Long Title",
@@ -135,8 +129,6 @@ func TestStatusTruncation(t *testing.T) {
 
 	for _, width := range widths {
 		t.Run(fmt.Sprintf("Width%d", width), func(t *testing.T) {
-			t.Parallel()
-
 			output := core.Status(opts, width)
 			golden.RequireEqual(t, []byte(output))
 		})

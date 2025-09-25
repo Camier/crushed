@@ -37,6 +37,7 @@ Thumbs.db
 # Binary output directory
 /bin/
 /dist/
+.gocache/
 
 # Local environment variables
 .env

@@ -110,6 +110,17 @@ func (h *header) details(availWidth int) string {
 		parts = append(parts, providerSegment)
 	}
 
+	// When details are open, include a compact LSP summary if LSPs are configured.
+	if h.detailsOpen {
+		if lsp := h.lspSummary(); lsp != "" {
+			parts = append(parts, lsp)
+		}
+		// And a concise per-LSP status list (found/missing/disabled).
+		if lst := h.lspDetailsList(); lst != "" {
+			parts = append(parts, lst)
+		}
+	}
+
 	errorCount := 0
 	for _, l := range h.lspClients {
 		for _, diagnostics := range l.GetDiagnostics() {
@@ -149,6 +160,99 @@ func (h *header) details(availWidth int) string {
 	cwd = s.Muted.Render(cwd)
 
 	return cwd + metadata
+}
+
+// lspSummary returns a compact status for configured LSP servers when details are open.
+// Format: "✓ LSP a/b" when all configured servers are found; otherwise "⚠ LSP a/b".
+// It returns an empty string when no LSPs are configured or none are enabled.
+func (h *header) lspSummary() string {
+	cfg := config.Get()
+	if cfg == nil {
+		return ""
+	}
+	total := 0
+	for _, l := range cfg.LSP {
+		if !l.Disabled {
+			total++
+		}
+	}
+	if total == 0 {
+		return ""
+	}
+	// Compute active by name match; fall back to clamping by total.
+	active := 0
+	for name, l := range cfg.LSP {
+		if l.Disabled {
+			continue
+		}
+		if _, ok := h.lspClients[name]; ok {
+			active++
+		}
+	}
+	if active == 0 && len(h.lspClients) > 0 {
+		if len(h.lspClients) < total {
+			active = len(h.lspClients)
+		} else {
+			active = total
+		}
+	}
+	missing := total - active
+	// Show spinner when any client reports recent work progress
+	busy := false
+	for _, c := range h.lspClients {
+		if c != nil && c.WorkInProgress() {
+			busy = true
+			break
+		}
+	}
+
+	t := styles.CurrentTheme().S()
+	label := fmt.Sprintf("LSP %d/%d", active, total)
+	if missing > 0 {
+		return t.Warning.Render(fmt.Sprintf("%s %s", styles.WarningIcon, label))
+	}
+	if busy {
+		return t.Info.Render(fmt.Sprintf("%s %s", styles.LoadingIcon, label))
+	}
+	return t.Success.Render(fmt.Sprintf("%s %s", styles.ToolSuccess, label))
+}
+
+// lspDetailsList returns a compact, per-LSP status list when details are open.
+// Example: "gopls ✓, pyright ⚠, rust-analyzer off"
+func (h *header) lspDetailsList() string {
+	cfg := config.Get()
+	if cfg == nil || len(cfg.LSP) == 0 {
+		return ""
+	}
+	entries := cfg.LSP.Sorted()
+	if len(entries) == 0 {
+		return ""
+	}
+	s := styles.CurrentTheme().S()
+	var items []string
+	for _, entry := range entries {
+		name := entry.Name
+		l := entry.LSP
+		if l.Disabled {
+			items = append(items, s.Muted.Render(name+" off"))
+			continue
+		}
+		c, ok := h.lspClients[name]
+		if ok && c != nil {
+			if c.WorkInProgress() {
+				items = append(items, s.Info.Render(name+" "+styles.LoadingIcon))
+			} else {
+				items = append(items, s.Success.Render(name+" "+styles.ToolSuccess))
+			}
+			continue
+		}
+		// Configured but not active
+		items = append(items, s.Warning.Render(name+" "+styles.WarningIcon))
+	}
+	if len(items) == 0 {
+		return ""
+	}
+	return strings.Join(items, ", ")
 }
 
 func (h *header) providerSummary(availWidth int) string {

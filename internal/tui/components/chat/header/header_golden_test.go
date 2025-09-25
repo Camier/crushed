@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/crush/internal/app"
 	"github.com/charmbracelet/crush/internal/config"
 	"github.com/charmbracelet/crush/internal/csync"
+	"github.com/charmbracelet/crush/internal/lsp"
 	"github.com/charmbracelet/crush/internal/session"
 	hdr "github.com/charmbracelet/crush/internal/tui/components/chat/header"
 	"github.com/charmbracelet/x/exp/golden"
@@ -39,11 +40,9 @@ func setupTestConfig(t *testing.T) *config.Config {
 }
 
 func TestHeaderCompact(t *testing.T) {
-	t.Parallel()
 	_ = setupTestConfig(t)
 
 	t.Run("Closed", func(t *testing.T) {
-		t.Parallel()
 		h := hdr.New(nil)
 		h.SetWidth(40)
 		h.SetSession(session.Session{ID: "s1", Title: "My Session", PromptTokens: 10, CompletionTokens: 20})
@@ -51,7 +50,6 @@ func TestHeaderCompact(t *testing.T) {
 	})
 
 	t.Run("Open", func(t *testing.T) {
-		t.Parallel()
 		h := hdr.New(nil)
 		h.SetWidth(40)
 		h.SetSession(session.Session{ID: "s1", Title: "My Session", PromptTokens: 10, CompletionTokens: 20})
@@ -61,7 +59,6 @@ func TestHeaderCompact(t *testing.T) {
 }
 
 func TestHeaderCompact_WithProvider(t *testing.T) {
-	t.Parallel()
 	_ = setupTestConfig(t)
 
 	h := hdr.New(nil)
@@ -80,7 +77,6 @@ func TestHeaderCompact_WithProvider(t *testing.T) {
 }
 
 func TestHeaderCompact_WithProviderStreamOff(t *testing.T) {
-	t.Parallel()
 	_ = setupTestConfig(t)
 
 	h := hdr.New(nil)
@@ -99,7 +95,6 @@ func TestHeaderCompact_WithProviderStreamOff(t *testing.T) {
 }
 
 func TestHeaderCompact_WithProviderTruncation(t *testing.T) {
-	t.Parallel()
 	_ = setupTestConfig(t)
 
 	h := hdr.New(nil)
@@ -118,7 +113,6 @@ func TestHeaderCompact_WithProviderTruncation(t *testing.T) {
 }
 
 func TestHeaderCompact_NarrowWidth(t *testing.T) {
-	t.Parallel()
 	_ = setupTestConfig(t)
 
 	h := hdr.New(nil)
@@ -128,7 +122,6 @@ func TestHeaderCompact_NarrowWidth(t *testing.T) {
 }
 
 func TestHeaderCompact_WithProviderWarning(t *testing.T) {
-	t.Parallel()
 	_ = setupTestConfig(t)
 
 	h := hdr.New(nil)
@@ -148,12 +141,32 @@ func TestHeaderCompact_WithProviderWarning(t *testing.T) {
 }
 
 func TestHeaderCompact_NoProvider(t *testing.T) {
-	t.Parallel()
 	_ = setupTestConfig(t)
 
 	h := hdr.New(nil)
 	h.SetWidth(40)
 	h.SetSession(session.Session{ID: "s1", Title: "My Session", PromptTokens: 10, CompletionTokens: 20})
 	h.SetProviderStatus(app.ProviderStatus{})
+	golden.RequireEqual(t, []byte(h.View()))
+}
+
+func TestHeader_WithLSPSummaryAndDetails(t *testing.T) {
+	cfg := setupTestConfig(t)
+	// Configure three LSPs: one active (shell), one missing, one disabled
+	cfg.LSP = config.LSPs{
+		"shell":   {Command: "bash", Args: []string{"--version"}},
+		"missing": {Command: "this-lsp-does-not-exist"},
+		"off":     {Command: "bash", Disabled: true},
+	}
+
+	clients := map[string]*lsp.Client{
+		"shell": {}, // zero-value client OK for header checks
+	}
+
+	h := hdr.New(clients)
+	h.SetWidth(80)
+	h.SetSession(session.Session{ID: "s1", Title: "My Session", PromptTokens: 10, CompletionTokens: 20})
+	h.SetDetailsOpen(true)
+
 	golden.RequireEqual(t, []byte(h.View()))
 }

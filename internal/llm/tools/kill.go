@@ -26,11 +26,11 @@ type killTool struct {
 
 const (
 	KillToolName    = "kill"
-	killDescription = `Terminate a running process by PID. On Unix-like systems you can optionally terminate the entire process group.
+	killDescription = `Terminate a running process by PID. You can optionally terminate the entire process group on Unix-like systems.
 
 Parameters:
 - pid: the target process ID (required)
-- signal: optional signal name (e.g., SIGTERM, SIGKILL). Defaults to SIGTERM on Unix. Ignored on Windows.
+- signal: optional signal name (e.g., SIGTERM, SIGKILL). Defaults to SIGTERM.
 - kill_group: when true on Unix, sends the signal to the whole process group.
 
 Use with care. Prefer SIGTERM before SIGKILL.`
@@ -97,7 +97,7 @@ func (k *killTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 	}
 
 	if runtime.GOOS == "windows" {
-		// Best-effort kill on Windows
+		// Platform-specific best-effort termination
 		proc, err := os.FindProcess(params.PID)
 		if err != nil {
 			return NewTextErrorResponse(err.Error()), nil

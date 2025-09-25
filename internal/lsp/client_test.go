@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -90,4 +91,20 @@ func TestHandlesFile(t *testing.T) {
 			require.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+type bufWriteCloser struct{ bytes.Buffer }
+
+func (b *bufWriteCloser) Close() error { return nil }
+
+func TestSendCancelWritesNotification(t *testing.T) {
+	var sink bufWriteCloser
+	c := &Client{stdin: &sink}
+	err := c.sendCancel(42)
+	require.NoError(t, err)
+	out := sink.String()
+	require.Contains(t, out, "Content-Length:")
+	require.Contains(t, out, "\r\n\r\n")
+	require.Contains(t, out, "\"method\":\"$/cancelRequest\"")
+	require.Contains(t, out, "\"id\":42")
 }

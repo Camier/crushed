@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -168,13 +167,8 @@ func bashDescription() string {
 	bannedCommandsStr := strings.Join(bannedCommands, ", ")
 	return fmt.Sprintf(`Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
 
-CROSS-PLATFORM SHELL SUPPORT:
-* This tool uses a shell interpreter (mvdan/sh) that mimics the Bash language,
-  so you should use Bash syntax in all platforms, including Windows.
-  The most common shell builtins and core utils are available in Windows as
-  well.
-* Make sure to use forward slashes (/) as path separators in commands, even on
-  Windows. Example: "ls C:/foo/bar" instead of "ls C:\foo\bar".
+SHELL SUPPORT:
+* This tool uses a Bash-compatible interpreter. Use standard Bash/POSIX syntax.
 
 Before executing the command, please follow these steps:
 
@@ -471,16 +465,9 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 
 	// Background execution path: start an OS subprocess and return immediately
 	if params.IsBackground {
-		// Choose platform command wrapper
-		var name string
-		var args []string
-		if runtime.GOOS == "windows" {
-			name = "cmd"
-			args = []string{"/c", params.Command}
-		} else {
-			name = "bash"
-			args = []string{"-lc", params.Command}
-		}
+		// Use bash -lc to execute the command
+		name := "bash"
+		args := []string{"-lc", params.Command}
 		cmd := exec.CommandContext(ctx, name, args...)
 		if currentWorkingDir != "" {
 			cmd.Dir = currentWorkingDir
@@ -489,18 +476,14 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 		}
 		// Inherit environment
 		cmd.Env = os.Environ()
-		if runtime.GOOS != "windows" {
-			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		}
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		if err := cmd.Start(); err != nil {
 			return ToolResponse{}, fmt.Errorf("failed to start background command: %w", err)
 		}
 		pid := cmd.Process.Pid
 		pgid := pid
-		if runtime.GOOS != "windows" {
-			// When Setpgid is enabled, PGID equals PID for the group leader
-			pgid = pid
-		}
+		// When Setpgid is enabled, PGID equals PID for the group leader
+		pgid = pid
 		// Do not wait; process continues in background
 		metadata := BashResponseMetadata{
 			StartTime:        startTime.UnixMilli(),
@@ -531,10 +514,6 @@ func (b *bashTool) Run(ctx context.Context, call ToolCall) (ToolResponse, error)
 		if cb, ok := GetProgressCallback(ctx); ok {
 			name := "bash"
 			args := []string{"-lc", params.Command}
-			if runtime.GOOS == "windows" {
-				name = "cmd"
-				args = []string{"/c", params.Command}
-			}
 			cmd := exec.CommandContext(ctx, name, args...)
 			if currentWorkingDir != "" {
 				cmd.Dir = currentWorkingDir
